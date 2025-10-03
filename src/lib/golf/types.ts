@@ -1,0 +1,120 @@
+// Golf Game Modes
+export enum GameMode {
+  STROKE_PLAY = 'stroke-play',
+  SKINS = 'skins',
+  NASSAU = 'nassau',
+  MATCH_PLAY = 'match-play',
+  WOLF = 'wolf',
+  POINTS = 'points',
+  VEGAS = 'vegas',
+  SIXES = 'sixes',
+  DOTS = 'dots',
+  ROLLING_STROKES = 'rolling-strokes',
+  SNAKE = 'snake'
+}
+
+// Badge Categories
+export enum BadgeCategory {
+  SCORING = 'scoring',
+  PARTICIPATION = 'participation',
+  SOCIAL = 'social',
+  MILESTONES = 'milestones'
+}
+
+// Custom Nostr Event Kinds for Golf
+export const GOLF_KINDS = {
+  ROUND: 30001,           // Golf round metadata
+  HOLE: 30002,            // Individual hole scores
+  PLAYER: 30003,          // Player profile in round
+  GAME: 30004,           // Game mode configuration
+  RESULT: 30005,         // Final round results
+  BADGE_AWARD: 30006,    // Badge achievement awards
+  TOURNAMENT: 30007,     // Tournament events
+  COURSE: 30008,         // Golf course metadata
+} as const;
+
+// Player in a round
+export interface PlayerInRound {
+  playerId: string;
+  name: string;
+  handicap: number;
+  scores: number[];
+  total: number;
+  netTotal: number;
+}
+
+// Individual hole score
+export interface HoleScore {
+  holeNumber: number;
+  par: number;
+  strokes: number;
+  putts: number;
+  fairways: boolean;
+  greens: boolean;
+  sandTraps: number;
+  penalties: number;
+  notes?: string;
+}
+
+// Golf round
+export interface GolfRound {
+  id: string;
+  courseId: string;
+  date: number;
+  players: PlayerInRound[];
+  gameMode: GameMode;
+  holes: HoleScore[];
+  status: 'active' | 'completed' | 'cancelled';
+  metadata: RoundMetadata;
+}
+
+// Round metadata
+export interface RoundMetadata {
+  courseName: string;
+  courseLocation?: string;
+  teeBox?: string;
+  weather?: string;
+  notes?: string;
+}
+
+// Badge definition
+export interface BadgeDefinition {
+  id: string;
+  category: BadgeCategory;
+  name: string;
+  description: string;
+  icon: string;
+  criteria: BadgeCriteria;
+  rarity: 'common' | 'rare' | 'epic' | 'legendary';
+}
+
+// Badge criteria
+export interface BadgeCriteria {
+  type: 'hole-score' | 'round-score' | 'streak' | 'participation';
+  conditions: Record<string, unknown>;
+}
+
+// Badge award
+export interface BadgeAward {
+  id: string;
+  badgeId: string;
+  playerId: string;
+  issuedAt: number;
+  metadata: Record<string, unknown>;
+}
+
+// Game configuration
+export interface GameConfig {
+  mode: GameMode;
+  players: PlayerInRound[];
+  handicaps: Record<string, number>;
+  settings: GameSettings;
+}
+
+// Game settings
+export interface GameSettings {
+  useHandicaps: boolean;
+  netScoring: boolean;
+  allowWagers?: boolean;
+  maxHoles?: number;
+}

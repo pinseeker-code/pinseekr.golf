@@ -71,7 +71,7 @@ export function useNWCInternal() {
         }
       });
       const timeoutPromise = new Promise<never>((_, reject) => {
-        timeoutId = setTimeout(() => reject(new Error('Connection test timeout')), 10000);
+        timeoutId = setTimeout(() => reject(new Error('Connection test timeout')), 10000) as unknown as NodeJS.Timeout;
       });
 
       try {
@@ -176,7 +176,7 @@ export function useNWCInternal() {
     try {
       let timeoutId: NodeJS.Timeout | undefined;
       const timeoutPromise = new Promise<never>((_, reject) => {
-        timeoutId = setTimeout(() => reject(new Error('Payment timeout after 15 seconds')), 15000);
+        timeoutId = setTimeout(() => reject(new Error('Payment timeout after 15 seconds')), 15000) as unknown as NodeJS.Timeout;
       });
 
       const paymentPromise = client.pay(invoice);

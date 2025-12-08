@@ -99,3 +99,9 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Hide textual "Selected" badges on the game-mode cards (visual selection uses color/highlight)
+   Scoped to the grid that renders the game-mode cards via the `data-hide-badges` attribute. */
+[data-hide-badges] .absolute.top-2.right-2 {
+  display: none;
+}

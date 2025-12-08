@@ -31,7 +31,7 @@ const Index = () => {
           </div>
           <div className="flex items-center space-x-4">
             <ThemeToggle />
-            <LoginArea className="max-w-60" />
+            <LoginArea className="max-w-60" useEnhancedLogin={true} />
           </div>
         </div>
       </header>
@@ -54,19 +54,14 @@ const Index = () => {
                     Start New Round
                   </Button>
                 </Link>
-                <Link to="/achievements">
-                  <Button variant="outline" size="lg" className="text-lg px-8 py-3">
-                    <Trophy className="mr-2 h-5 w-5" />
-                    View Achievements
-                  </Button>
-                </Link>
+                {/* View Achievements button moved into the Achievement Badges card below */}
               </>
             ) : (
               <div className="bg-white/90 dark:bg-gray-800/90 p-6 rounded-lg border">
                 <p className="text-gray-600 dark:text-gray-400 mb-4">
                   Sign in with your Nostr identity to start tracking your golf scores
                 </p>
-                <LoginArea className="w-full" />
+                <LoginArea className="w-full" useEnhancedLogin={true} />
               </div>
             )}
           </div>
@@ -74,26 +69,28 @@ const Index = () => {
 
         {/* Features Grid */}
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
-          <Link to="/scoring-demo" className="block hover:scale-105 transition-transform">
-            <Card className="text-center hover:shadow-lg transition-shadow h-full">
-              <CardHeader>
+          <Card className="text-center hover:shadow-lg transition-shadow h-full hover:scale-105 transition-transform">
+            <CardHeader>
+              <Link to="/round/new" className="block">
                 <div className="h-12 w-12 rounded-full flex items-center justify-center mx-auto mb-4" style={{ backgroundColor: '#FFD600' }}>
                   <span className="font-bold text-xl" style={{ color: '#333333' }}>⛳</span>
                 </div>
                 <CardTitle>Score Tracking</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <CardDescription>
-                  Select game modes, set wagers, record scores. Sats calculated automatically and settled with Lightning.
-                </CardDescription>
-                <div className="mt-4">
+              </Link>
+            </CardHeader>
+            <CardContent>
+              <CardDescription>
+                Select game modes, set wagers, record scores. Sats calculated automatically and settled with Lightning.
+              </CardDescription>
+              <div className="mt-4">
+                <Link to="/demo">
                   <Button variant="outline" size="sm" className="text-xs">
                     Try Interactive Demo
                   </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </Link>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
 
           <Card className="text-center hover:shadow-lg transition-shadow">
             <CardHeader>
@@ -128,6 +125,14 @@ const Index = () => {
               <CardDescription>
                 Earn badges for hole-in-ones, breaking 90, eagles, and other golf milestones.
               </CardDescription>
+                <div className="mt-4">
+                  <Link to="/achievements">
+                    <Button variant="outline" size="sm">
+                      <Trophy className="mr-2 h-4 w-4" />
+                      View Achievements
+                    </Button>
+                  </Link>
+                </div>
             </CardContent>
           </Card>
         </div>
@@ -171,16 +176,16 @@ const Index = () => {
                   </p>
                 </div>
                 <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
-                  <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">Dots (Points)</h3>
+                  <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">Dots</h3>
                   <p className="text-blue-700 dark:text-blue-300 text-sm">
                     Earn points for achieving specific goals: birdies, pars, closest to pin, longest drive. At the end, points are converted to cash payouts. Great for rewarding different types of good golf.
                   </p>
                 </div>
                 <div className="p-4 bg-green-50 dark:bg-green-950 rounded-lg border border-green-200 dark:border-green-800">
                   <h3 className="font-semibold text-green-900 dark:text-green-100 mb-2">Snake</h3>
-                  <p className="text-green-700 dark:text-green-300 text-sm">
-                    Avoid the "snake" (penalty) that gets passed around the group. Three-putt and you get the snake. Whoever holds it at the end pays the penalty. Keeps everyone focused on their putting.
-                  </p>
+                    <p className="text-green-700 dark:text-green-300 text-sm">
+                      Progressive Wager (penalty increases as more three-putts are made by the group). When a player three-putts the Snake is passed; the final Snake at round end carries the largest penalty.
+                    </p>
                 </div>
                 <div className="p-4 bg-gradient-to-br from-yellow-50 via-purple-50 to-yellow-50 dark:from-yellow-950 dark:via-purple-950 dark:to-yellow-950 rounded-lg border-2 border-yellow-400 dark:border-yellow-600 relative overflow-hidden">
                   <div className="absolute top-2 right-2">

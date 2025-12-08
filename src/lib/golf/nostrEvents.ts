@@ -1,4 +1,4 @@
-import { GOLF_KINDS, GolfRound, HoleScore, PlayerInRound, GameMode } from './types';
+import { GOLF_KINDS, GolfRound, HoleScore, PlayerInRound, GameMode, GameSettings } from './types';
 
 // Nostr event type
 interface NostrEvent {
@@ -12,16 +12,23 @@ interface NostrEvent {
 
 /**
  * Create a golf round event
+ * @param round - The golf round data
+ * @param roundCode - Optional 6-character share code for joining
  */
-export function createRoundEvent(round: GolfRound): NostrEvent {
+export function createRoundEvent(round: GolfRound, roundCode?: string): NostrEvent {
   const playerPubkeys = round.players.map(p => p.playerId);
+  
+  // Use a predictable d tag format that includes the join code for queryability
+  // Format: "join-CODE" when sharing, or the round.id otherwise
+  const dTagValue = roundCode ? `join-${roundCode}` : round.id;
 
   return {
     kind: GOLF_KINDS.ROUND,
     pubkey: round.players[0]?.playerId || '', // First player as creator
     created_at: Math.floor(Date.now() / 1000),
     tags: [
-      ['d', round.id],
+      ['d', dTagValue],
+      ['round-id', round.id], // Store actual round ID separately
       ['t', 'golf'],
       ['t', 'round'],
       ['title', round.metadata.courseName],
@@ -32,6 +39,7 @@ export function createRoundEvent(round: GolfRound): NostrEvent {
       ['status', round.status],
       ...(round.metadata.courseLocation ? [['location', round.metadata.courseLocation]] : []),
       ...(round.metadata.teeBox ? [['tee-box', round.metadata.teeBox]] : []),
+      ...(typeof round.metadata.teeYardage !== 'undefined' ? [['tee-yardage', String(round.metadata.teeYardage)]] : []),
       ...(round.metadata.weather ? [['weather', round.metadata.weather]] : []),
     ],
     content: round.metadata.notes || '',
@@ -102,22 +110,30 @@ export function createPlayerEvent(
 export function createGameEvent(
   gameMode: GameMode,
   players: PlayerInRound[],
-  roundId: string
+  roundId: string,
+  settings?: GameSettings
 ): NostrEvent {
   const handicaps = players.map(p => [p.playerId, p.handicap.toString()]);
+
+  const tags: string[][] = [
+    ['d', `${roundId}-game`],
+    ['t', 'golf'],
+    ['t', 'game'],
+    ['round', roundId],
+    ['mode', gameMode],
+    ...handicaps.flatMap(([player, handicap]) => [['handicap', player, handicap]]),
+  ];
+
+  // If stableford settings provided, add explicit tag
+  if (settings && typeof settings.modifiedStableford !== 'undefined') {
+    tags.push(['stableford', settings.modifiedStableford ? 'modified' : 'standard']);
+  }
 
   return {
     kind: GOLF_KINDS.GAME,
     pubkey: players[0]?.playerId || '', // First player as creator
     created_at: Math.floor(Date.now() / 1000),
-    tags: [
-      ['d', `${roundId}-game`],
-      ['t', 'golf'],
-      ['t', 'game'],
-      ['round', roundId],
-      ['mode', gameMode],
-      ...handicaps.flatMap(([player, handicap]) => [['handicap', player, handicap]]),
-    ],
+    tags,
     content: '',
   };
 }
@@ -236,6 +252,7 @@ export function parseHoleScoreEvent(event: NostrEvent): HoleScore | null {
     putts: parseInt(puttsTag),
     fairways: fairwaysTag === 'true',
     greens: greensTag === 'true',
+    chips: 0, // Initialize chips field
     sandTraps: sandTrapsTag ? parseInt(sandTrapsTag) : 0,
     penalties: penaltiesTag ? parseInt(penaltiesTag) : 0,
     notes: event.content,

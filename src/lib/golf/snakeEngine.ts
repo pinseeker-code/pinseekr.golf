@@ -4,6 +4,8 @@ export interface SnakeConfig {
   penaltyAmount?: number; // sats penalty for holding snake at end
   threePuttThreshold?: number; // default 3
   distributeToGroup?: boolean; // if true, penalty goes to pot, if false, to other players
+  variant?: 'fixed' | 'progressive'; // Snake game variant
+  progressiveMultiplier?: number; // Multiplier for progressive variant (default 1.1)
 }
 
 export interface SnakeHoleResult {
@@ -22,8 +24,12 @@ export interface SnakeResult {
   penalty: {
     loser: string | null;
     amount: number;
+    baseAmount: number; // Original penalty amount
+    multiplier: number; // Applied multiplier
     recipients: Array<{ playerId: string; amount: number }>;
   } | null;
+  variant: 'fixed' | 'progressive';
+  currentMultiplier: number; // Current multiplier based on snake passes
 }
 
 export interface SnakeRoundData extends CoreRoundData {
@@ -43,7 +49,9 @@ export function snakeEngine(data: SnakeRoundData, config: SnakeConfig = {}): Sna
   const defaults = {
     penaltyAmount: config.penaltyAmount || 500, // sats
     threePuttThreshold: config.threePuttThreshold || 3,
-    distributeToGroup: config.distributeToGroup || false
+    distributeToGroup: config.distributeToGroup || false,
+    variant: config.variant || 'fixed',
+    progressiveMultiplier: config.progressiveMultiplier || 1.1
   };
 
   const holeResults: SnakeHoleResult[] = [];
@@ -56,26 +64,42 @@ export function snakeEngine(data: SnakeRoundData, config: SnakeConfig = {}): Sna
     threePuttSummary[playerId] = 0;
   });
 
-  // Process each hole
-  for (let hole = 1; hole <= 18; hole++) {
+  // Process each hole (only holes that have data)
+  const holesWithData = new Set<number>();
+  players.forEach(playerId => {
+    Object.keys(putts[playerId] || {}).forEach(hole => {
+      holesWithData.add(parseInt(hole));
+    });
+  });
+  
+  const sortedHoles = Array.from(holesWithData).sort((a, b) => a - b);
+  
+  for (const hole of sortedHoles) {
     const playerPutts: { [playerId: string]: number } = {};
     const threePutters: string[] = [];
+    let holeSnakeHolder = currentSnakeHolder; // Start with current holder
 
     // Check each player's putts for this hole
     players.forEach(playerId => {
       const holePutts = putts[playerId]?.[hole] || 2; // Default 2 putts
       playerPutts[playerId] = holePutts;
 
-      // Check for three-putt (or more)
+      // Check for three-putt (or more) - snake passes to ANY player who 3-putts
       if (holePutts >= defaults.threePuttThreshold) {
         threePutters.push(playerId);
         threePuttSummary[playerId]++;
         
-        // Snake passes to this player (last three-putter gets it if multiple)
-        currentSnakeHolder = playerId;
+        // Snake passes to this player - if multiple players 3-putt on same hole,
+        // the last one in player order gets the snake
+        holeSnakeHolder = playerId;
         snakePasses++;
       }
     });
+
+    // Update the current snake holder only if it changed on this hole
+    if (holeSnakeHolder !== currentSnakeHolder) {
+      currentSnakeHolder = holeSnakeHolder;
+    }
 
     holeResults.push({
       hole,
@@ -85,22 +109,33 @@ export function snakeEngine(data: SnakeRoundData, config: SnakeConfig = {}): Sna
     });
   }
 
-  // Calculate penalty
+  // Calculate penalty with variant logic
   let penalty: SnakeResult['penalty'] = null;
+  let currentMultiplier = 1;
   
   if (currentSnakeHolder && defaults.penaltyAmount > 0) {
+    // Calculate multiplier based on variant
+    if (defaults.variant === 'progressive') {
+      // Progressive: multiplier increases with each snake pass
+      currentMultiplier = Math.pow(defaults.progressiveMultiplier, snakePasses);
+    } else {
+      // Fixed: no multiplier
+      currentMultiplier = 1;
+    }
+    
+    const finalAmount = Math.round(defaults.penaltyAmount * currentMultiplier);
     const recipients: Array<{ playerId: string; amount: number }> = [];
     
     if (defaults.distributeToGroup) {
       // Penalty goes to a pot (could be distributed equally or handled externally)
       recipients.push({
         playerId: 'pot',
-        amount: defaults.penaltyAmount
+        amount: finalAmount
       });
     } else {
       // Penalty is split among other players
       const otherPlayers = players.filter(p => p !== currentSnakeHolder);
-      const amountPerPlayer = Math.floor(defaults.penaltyAmount / otherPlayers.length);
+      const amountPerPlayer = Math.floor(finalAmount / otherPlayers.length);
       
       otherPlayers.forEach(playerId => {
         recipients.push({
@@ -112,18 +147,22 @@ export function snakeEngine(data: SnakeRoundData, config: SnakeConfig = {}): Sna
 
     penalty = {
       loser: currentSnakeHolder,
-      amount: defaults.penaltyAmount,
+      amount: finalAmount,
+      baseAmount: defaults.penaltyAmount,
+      multiplier: currentMultiplier,
       recipients
     };
   }
 
   return {
-    name: 'Snake',
+    name: `Snake (${defaults.variant === 'progressive' ? 'Progressive' : 'Fixed'})`,
     holeByHole: holeResults,
     finalSnakeHolder: currentSnakeHolder,
     snakePasses,
     threePuttSummary,
-    penalty
+    penalty,
+    variant: defaults.variant,
+    currentMultiplier
   };
 }
 
@@ -209,7 +248,14 @@ export function getSnakeStatus(result: SnakeResult): string {
   if (result.penalty) {
     const loser = result.finalSnakeHolder;
     const amount = result.penalty.amount;
-    return `${loser} holds the snake and owes ${amount} sats!`;
+    const baseAmount = result.penalty.baseAmount;
+    const multiplier = result.penalty.multiplier;
+    
+    if (result.variant === 'progressive' && multiplier > 1) {
+      return `${loser} holds the snake and owes ${amount} sats (${baseAmount} × ${multiplier.toFixed(1)}x)!`;
+    } else {
+      return `${loser} holds the snake and owes ${amount} sats!`;
+    }
   }
   
   return `${result.finalSnakeHolder} holds the snake`;

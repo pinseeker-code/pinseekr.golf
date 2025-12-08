@@ -94,8 +94,17 @@ export function dotsEngine(data: ExtendedRoundData, config: DotsConfig = {}): Do
     };
   });
 
-  // Process each hole
-  for (let hole = 1; hole <= 18; hole++) {
+  // Process each hole (only holes that have data)
+  const holesWithData = new Set<number>();
+  players.forEach(playerId => {
+    Object.keys(holeData[playerId] || {}).forEach(hole => {
+      holesWithData.add(parseInt(hole));
+    });
+  });
+  
+  const sortedHoles = Array.from(holesWithData).sort((a, b) => a - b);
+  
+  for (const hole of sortedHoles) {
     const holeInfo = course?.holes[hole];
     const par = holeInfo?.par || 4;
     
@@ -231,7 +240,7 @@ export function dotsEngine(data: ExtendedRoundData, config: DotsConfig = {}): Do
   }
 
   return {
-    name: 'Dots (Points Game)',
+    name: 'Dots',
     holeByHole: holeResults,
     totals,
     leaderboard,
@@ -261,10 +270,22 @@ export function convertToDotsData(
 
   players.forEach(playerId => {
     holeData[playerId] = {};
-    
-    for (let hole = 1; hole <= 18; hole++) {
+
+    // Only generate hole data for holes where we have stroke entries for this player.
+    // This prevents creating 18 holes of estimated random data when no strokes were recorded.
+    const playerStrokes = strokes[playerId] || {};
+    const holesToProcess = Object.keys(playerStrokes).length > 0
+      ? Object.keys(playerStrokes).map(h => parseInt(h, 10)).sort((a, b) => a - b)
+      : [];
+
+    if (holesToProcess.length === 0) {
+      // No stroke data for this player; leave holeData[playerId] empty
+      return;
+    }
+
+    for (const hole of holesToProcess) {
       const holeStrokes = strokes[playerId]?.[hole] || 0;
-      const par = course?.holes[hole]?.par || 4;
+      const par = course?.holes?.[hole]?.par || 4;
       
       // Estimate putts (rough approximation)
       let putts = 2; // Default 2 putts

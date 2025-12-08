@@ -2,7 +2,25 @@ import { describe, it, expect } from 'vitest';
 import { snakeEngine, convertToSnakeData, getSnakeStatus, formatThreePuttSummary, type SnakeConfig } from './snakeEngine';
 import type { CoreRoundData } from './strokeEngine';
 
-describe('snakeEngine', () => {
+describe('getSnakeStatus', () => {
+  it('should return correct status without penalty', () => {
+    const result = {
+      name: 'Snake',
+      holeByHole: [],
+      finalSnakeHolder: null,
+      snakePasses: 0,
+      threePuttSummary: {},
+      penalty: null,
+      variant: 'fixed' as const,
+      currentMultiplier: 1
+    };
+
+    const status = getSnakeStatus(result);
+    expect(status).toBe("No three-putts this round - no snake penalty!");
+  });
+});
+
+describe('Snake Engine', () => {
   const sampleSnakeData = {
     players: ['alice', 'bob', 'charlie'],
     strokes: {
@@ -33,7 +51,7 @@ describe('snakeEngine', () => {
 
     const result = snakeEngine(sampleSnakeData, config);
 
-    expect(result.name).toBe('Snake');
+    expect(result.name).toBe('Snake (Fixed)');
     expect(result.holeByHole).toHaveLength(3);
     expect(result.finalSnakeHolder).toBe('bob'); // bob had three-putts
     expect(result.snakePasses).toBe(2); // bob three-putted twice
@@ -95,7 +113,7 @@ describe('snakeEngine', () => {
   it('should use default configuration when none provided', () => {
     const result = snakeEngine(sampleSnakeData);
 
-    expect(result.name).toBe('Snake');
+    expect(result.name).toBe('Snake (Fixed)');
     expect(result.penalty!.amount).toBe(500); // default penalty amount
   });
 
@@ -235,7 +253,9 @@ describe('getSnakeStatus', () => {
       finalSnakeHolder: null,
       snakePasses: 0,
       threePuttSummary: {},
-      penalty: null
+      penalty: null,
+      variant: 'fixed' as const,
+      currentMultiplier: 1
     };
 
     const status = getSnakeStatus(result);
@@ -252,8 +272,12 @@ describe('getSnakeStatus', () => {
       penalty: {
         loser: 'bob',
         amount: 1000,
+        baseAmount: 1000,
+        multiplier: 1,
         recipients: []
-      }
+      },
+      variant: 'fixed' as const,
+      currentMultiplier: 1
     };
 
     const status = getSnakeStatus(result);
@@ -267,7 +291,9 @@ describe('getSnakeStatus', () => {
       finalSnakeHolder: 'bob',
       snakePasses: 1,
       threePuttSummary: { bob: 1 },
-      penalty: null
+      penalty: null,
+      variant: 'fixed' as const,
+      currentMultiplier: 1
     };
 
     const status = getSnakeStatus(result);

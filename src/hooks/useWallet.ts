@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNWC } from '@/hooks/useNWCContext';
 import type { WebLNProvider } from 'webln';
-import { requestProvider } from 'webln';
+import { requestProvider as requestBitcoinConnectProvider, onConnected, onDisconnected } from '@getalby/bitcoin-connect-react';
 
 export interface WalletStatus {
   hasWebLN: boolean;
@@ -21,19 +21,37 @@ export function useWallet() {
   // Get the active connection directly - no memoization to avoid stale state
   const activeNWC = getActiveConnection();
 
-  // Detect WebLN
+  // Listen for Bitcoin Connect connection events
+  useEffect(() => {
+    const unsubConnected = onConnected((provider) => {
+      setWebln(provider);
+      setHasAttemptedDetection(true);
+    });
+    
+    const unsubDisconnected = onDisconnected(() => {
+      setWebln(null);
+    });
+    
+    return () => {
+      unsubConnected();
+      unsubDisconnected();
+    };
+  }, []);
+
+  // Detect WebLN using Bitcoin Connect's requestProvider
   const detectWebLN = useCallback(async () => {
     if (webln || isDetecting) return webln;
 
     setIsDetecting(true);
     try {
-      const provider = await requestProvider();
+      // This will launch the Bitcoin Connect modal if no provider is connected
+      const provider = await requestBitcoinConnectProvider();
       setWebln(provider);
       setHasAttemptedDetection(true);
       return provider;
     } catch (error) {
-      // Only log the error if it's not the common "no provider" error
-      if (error instanceof Error && !error.message.includes('no WebLN provider')) {
+      // User cancelled the modal or no provider available
+      if (error instanceof Error && !error.message.includes('cancelled')) {
         console.warn('WebLN detection error:', error);
       }
       setWebln(null);
@@ -44,12 +62,13 @@ export function useWallet() {
     }
   }, [webln, isDetecting]);
 
-  // Only auto-detect once on mount
+  // Check if we already have window.webln on mount (set by Bitcoin Connect onConnected)
   useEffect(() => {
-    if (!hasAttemptedDetection) {
-      detectWebLN();
+    if (!hasAttemptedDetection && window.webln) {
+      setWebln(window.webln);
+      setHasAttemptedDetection(true);
     }
-  }, [detectWebLN, hasAttemptedDetection]);
+  }, [hasAttemptedDetection]);
 
   // Test WebLN connection
   const testWebLN = useCallback(async (): Promise<boolean> => {

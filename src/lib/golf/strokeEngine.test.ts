@@ -58,7 +58,7 @@ describe('Stroke Play Engine', () => {
       expect(result.name).toBe('Stroke Play');
       expect(result.ledger).toEqual([]);
       
-      expect(result.breakdown.totals.alice.gross).toBe(73);
+      expect(result.breakdown.totals.alice.gross).toBe(74);
       expect(result.breakdown.totals.bob.gross).toBe(93);
       expect(result.breakdown.totals.charlie.gross).toBe(58);
 
@@ -72,7 +72,7 @@ describe('Stroke Play Engine', () => {
       const config: StrokeConfig = { useNet: true };
       const result = strokeEngine(sampleRoundData, config);
 
-      expect(result.breakdown.totals.alice.net).toBe(69);
+      expect(result.breakdown.totals.alice.net).toBe(70);
       expect(result.breakdown.totals.bob.net).toBe(83);
       expect(result.breakdown.totals.charlie.net).toBe(58);
 

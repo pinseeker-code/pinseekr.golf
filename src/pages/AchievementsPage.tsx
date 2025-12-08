@@ -260,3 +260,5 @@ export const AchievementsPage: React.FC = () => {
     </Layout>
   );
 };
+
+export default AchievementsPage;

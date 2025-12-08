@@ -2,7 +2,7 @@ import { nip19 } from 'nostr-tools';
 import { useParams } from 'react-router-dom';
 import NotFound from './NotFound';
 
-export function NIP19Page() {
+export default function NIP19Page() {
   const { nip19: identifier } = useParams<{ nip19: string }>();
 
   if (!identifier) {

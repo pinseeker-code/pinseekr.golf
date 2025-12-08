@@ -1,0 +1,25 @@
+# Caddy reverse proxy for Grain relay
+# Auto-obtains and renews SSL certificates
+
+relay.pinseekr.golf {
+    # WebSocket support for Nostr relay
+    reverse_proxy grain:8080 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+        
+        # WebSocket headers
+        header_up Connection {>Connection}
+        header_up Upgrade {>Upgrade}
+    }
+    
+    # Enable compression
+    encode gzip
+    
+    # Logging
+    log {
+        output file /data/access.log
+        format console
+    }
+}

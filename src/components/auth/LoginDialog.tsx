@@ -2,13 +2,14 @@
 // It is important that all functionality in this file is preserved, and should only be modified if explicitly requested.
 
 import React, { useRef, useState, useEffect } from 'react';
-import { Shield, Upload, AlertTriangle, UserPlus, KeyRound, Sparkles, Cloud } from 'lucide-react';
+import { Shield, Upload, AlertTriangle, UserPlus, KeyRound, Sparkles, Cloud, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useLoginActions } from '@/hooks/useLoginActions';
+import { useEmailAuth, validateEmail, validatePassword, validateConfirmPassword } from '@/hooks/useEmailAuth';
 import { cn } from '@/lib/utils';
 
 interface LoginDialogProps {
@@ -31,14 +32,22 @@ const LoginDialog: React.FC<LoginDialogProps> = ({ isOpen, onClose, onLogin, onS
   const [isFileLoading, setIsFileLoading] = useState(false);
   const [nsec, setNsec] = useState('');
   const [bunkerUri, setBunkerUri] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isEmailSignup, setIsEmailSignup] = useState(false);
   const [errors, setErrors] = useState<{
     nsec?: string;
     bunker?: string;
     file?: string;
     extension?: string;
+    email?: string;
+    password?: string;
+    confirmPassword?: string;
   }>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
   const login = useLoginActions();
+  const emailAuth = useEmailAuth();
 
   // Reset all state when dialog opens/closes
   useEffect(() => {
@@ -48,6 +57,10 @@ const LoginDialog: React.FC<LoginDialogProps> = ({ isOpen, onClose, onLogin, onS
       setIsFileLoading(false);
       setNsec('');
       setBunkerUri('');
+      setEmail('');
+      setPassword('');
+      setConfirmPassword('');
+      setIsEmailSignup(false);
       setErrors({});
       // Reset file input
       if (fileInputRef.current) {
@@ -170,6 +183,51 @@ const LoginDialog: React.FC<LoginDialogProps> = ({ isOpen, onClose, onLogin, onS
     reader.readAsText(file);
   };
 
+  const handleEmailAuth = async () => {
+    // Clear previous errors
+    setErrors(prev => ({ ...prev, email: undefined, password: undefined, confirmPassword: undefined }));
+
+    // Validate email
+    const emailError = validateEmail(email);
+    if (emailError) {
+      setErrors(prev => ({ ...prev, email: emailError }));
+      return;
+    }
+
+    // Validate password
+    const passwordError = validatePassword(password, isEmailSignup);
+    if (passwordError) {
+      setErrors(prev => ({ ...prev, password: passwordError }));
+      return;
+    }
+
+    // Validate confirm password for signup
+    if (isEmailSignup) {
+      const confirmError = validateConfirmPassword(password, confirmPassword);
+      if (confirmError) {
+        setErrors(prev => ({ ...prev, confirmPassword: confirmError }));
+        return;
+      }
+    }
+
+    try {
+      if (isEmailSignup) {
+        const user = await emailAuth.signup(email, password);
+        // Use the user's nsec to log them in through the existing Nostr system
+        login.nsec(user.nsec);
+      } else {
+        const user = await emailAuth.login(email, password);
+        // Use the user's nsec to log them in through the existing Nostr system
+        login.nsec(user.nsec);
+      }
+      
+      onLogin();
+      onClose();
+    } catch {
+      // Error is already handled by the hook and shown via toast
+    }
+  };
+
   const handleSignupClick = () => {
     onClose();
     if (onSignup) {
@@ -227,7 +285,7 @@ const LoginDialog: React.FC<LoginDialogProps> = ({ isOpen, onClose, onLogin, onS
 
           {/* Login Methods */}
           <Tabs defaultValue={defaultTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-3 bg-muted/80 rounded-lg mb-4">
+            <TabsList className="grid w-full grid-cols-4 bg-muted/80 rounded-lg mb-4">
               <TabsTrigger value="extension" className="flex items-center gap-2">
                 <Shield className="w-4 h-4" />
                 <span>Extension</span>
@@ -239,6 +297,10 @@ const LoginDialog: React.FC<LoginDialogProps> = ({ isOpen, onClose, onLogin, onS
               <TabsTrigger value="bunker" className="flex items-center gap-2">
                 <Cloud className="w-4 h-4" />
                 <span>Bunker</span>
+              </TabsTrigger>
+              <TabsTrigger value="email" className="flex items-center gap-2">
+                <Mail className="w-4 h-4" />
+                <span>Email</span>
               </TabsTrigger>
             </TabsList>
             <TabsContent value='extension' className='space-y-3 bg-muted'>
@@ -364,6 +426,107 @@ const LoginDialog: React.FC<LoginDialogProps> = ({ isOpen, onClose, onLogin, onS
                 >
                   {isLoading ? 'Connecting...' : 'Login with Bunker'}
                 </Button>
+              </div>
+            </TabsContent>
+
+            <TabsContent value='email' className='space-y-4'>
+              <div className='space-y-4'>
+                {errors.email && (
+                  <Alert variant="destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription>{errors.email}</AlertDescription>
+                  </Alert>
+                )}
+
+                <div className='space-y-2'>
+                  <label htmlFor='email' className='text-sm font-medium'>
+                    Email Address
+                  </label>
+                  <Input
+                    id='email'
+                    type="email"
+                    value={email}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      if (errors.email) setErrors(prev => ({ ...prev, email: undefined }));
+                    }}
+                    className={`rounded-lg ${
+                      errors.email ? 'border-red-500 focus-visible:ring-red-500' : ''
+                    }`}
+                    placeholder='your@email.com'
+                    autoComplete="email"
+                  />
+                </div>
+
+                <div className='space-y-2'>
+                  <label htmlFor='password' className='text-sm font-medium'>
+                    Password
+                  </label>
+                  <Input
+                    id='password'
+                    type="password"
+                    value={password}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      if (errors.password) setErrors(prev => ({ ...prev, password: undefined }));
+                    }}
+                    className={`rounded-lg ${
+                      errors.password ? 'border-red-500 focus-visible:ring-red-500' : ''
+                    }`}
+                    placeholder='Enter your password'
+                    autoComplete={isEmailSignup ? "new-password" : "current-password"}
+                  />
+                  {errors.password && (
+                    <p className="text-sm text-red-500">{errors.password}</p>
+                  )}
+                </div>
+
+                {isEmailSignup && (
+                  <div className='space-y-2'>
+                    <label htmlFor='confirmPassword' className='text-sm font-medium'>
+                      Confirm Password
+                    </label>
+                    <Input
+                      id='confirmPassword'
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => {
+                        setConfirmPassword(e.target.value);
+                        if (errors.confirmPassword) setErrors(prev => ({ ...prev, confirmPassword: undefined }));
+                      }}
+                      className={`rounded-lg ${
+                        errors.confirmPassword ? 'border-red-500 focus-visible:ring-red-500' : ''
+                      }`}
+                      placeholder='Confirm your password'
+                      autoComplete="new-password"
+                    />
+                    {errors.confirmPassword && (
+                      <p className="text-sm text-red-500">{errors.confirmPassword}</p>
+                    )}
+                  </div>
+                )}
+
+                <Button
+                  className='w-full rounded-full py-3'
+                  onClick={handleEmailAuth}
+                  disabled={isLoading || emailAuth.isLoading || !email.trim() || !password.trim()}
+                >
+                  {(isLoading || emailAuth.isLoading) ? 'Processing...' : (isEmailSignup ? 'Sign Up' : 'Log In')}
+                </Button>
+
+                <div className='text-center'>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsEmailSignup(!isEmailSignup)}
+                    className="text-sm"
+                  >
+                    {isEmailSignup 
+                      ? 'Already have an account? Log in' 
+                      : "Don't have an account? Sign up"
+                    }
+                  </Button>
+                </div>
               </div>
             </TabsContent>
           </Tabs>

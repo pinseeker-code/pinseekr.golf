@@ -12,6 +12,7 @@ import { toast } from '@/hooks/useToast';
 import { useLoginActions } from '@/hooks/useLoginActions';
 import { useNostrPublish } from '@/hooks/useNostrPublish';
 import { useUploadFile } from '@/hooks/useUploadFile';
+import { useEmailAuth } from '@/hooks/useEmailAuth';
 import { generateSecretKey, nip19 } from 'nostr-tools';
 import { cn } from '@/lib/utils';
 
@@ -26,8 +27,11 @@ const sanitizeFilename = (filename: string) => {
 }
 
 const SignupDialog: React.FC<SignupDialogProps> = ({ isOpen, onClose, onComplete }) => {
-  const [step, setStep] = useState<'welcome' | 'generate' | 'download' | 'profile' | 'done'>('welcome');
+  const [step, setStep] = useState<'welcome' | 'email' | 'generate' | 'download' | 'profile' | 'done'>('welcome');
   const [isLoading, setIsLoading] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [emailError, setEmailError] = useState('');
   const [nsec, setNsec] = useState('');
   const [showSparkles, setShowSparkles] = useState(false);
   const [keySecured, setKeySecured] = useState<'none' | 'copied' | 'downloaded'>('none');
@@ -39,6 +43,7 @@ const SignupDialog: React.FC<SignupDialogProps> = ({ isOpen, onClose, onComplete
   const login = useLoginActions();
   const { mutateAsync: publishEvent, isPending: isPublishing } = useNostrPublish();
   const { mutateAsync: uploadFile, isPending: isUploading } = useUploadFile();
+  const emailAuth = useEmailAuth();
   const avatarFileInputRef = useRef<HTMLInputElement>(null);
 
   // Generate a proper nsec key using nostr-tools
@@ -248,11 +253,55 @@ const SignupDialog: React.FC<SignupDialogProps> = ({ isOpen, onClose, onComplete
     }
   };
 
+  const handleEmailSignup = async () => {
+    // Basic validation
+    if (!email.trim()) {
+      setEmailError('Email is required');
+      return;
+    }
+    if (!password.trim()) {
+      setEmailError('Password is required');
+      return;
+    }
+    if (password.length < 8) {
+      setEmailError('Password must be at least 8 characters');
+      return;
+    }
+
+    setEmailError('');
+    
+    try {
+      const user = await emailAuth.signup(email, password);
+      // Use the user's nsec to log them in through the existing Nostr system
+      login.nsec(user.nsec);
+      
+      // Close dialog and complete signup
+      onClose();
+      if (onComplete) {
+        setTimeout(() => {
+          onComplete();
+        }, 600);
+      }
+    } catch (error) {
+      if (error instanceof Error) {
+        setEmailError(error.message);
+      } else {
+        setEmailError('Signup failed. Please try again.');
+      }
+    }
+  };
+
   const getTitle = () => {
     if (step === 'welcome') return (
       <span className="flex items-center justify-center gap-2">
         <UserPlus className="w-5 h-5 text-primary" />
         Create Your Account
+      </span>
+    );
+    if (step === 'email') return (
+      <span className="flex items-center justify-center gap-2">
+        <UserPlus className="w-5 h-5 text-primary" />
+        Sign Up with Email
       </span>
     );
     if (step === 'generate') return (
@@ -283,6 +332,7 @@ const SignupDialog: React.FC<SignupDialogProps> = ({ isOpen, onClose, onComplete
 
   const getDescription = () => {
     if (step === 'welcome') return 'Ready to join the Nostr network?';
+    if (step === 'email') return 'Create your account with email and password.';
     if (step === 'generate') return 'Creating your secret key to access Nostr.';
 
     if (step === 'profile') return 'Tell others about yourself.';
@@ -298,6 +348,9 @@ const SignupDialog: React.FC<SignupDialogProps> = ({ isOpen, onClose, onComplete
       setShowSparkles(false);
       setKeySecured('none');
       setProfileData({ name: '', about: '', picture: '' });
+      setEmail('');
+      setPassword('');
+      setEmailError('');
     }
   }, [isOpen]);
 
@@ -376,6 +429,113 @@ const SignupDialog: React.FC<SignupDialogProps> = ({ isOpen, onClose, onComplete
                 <p className='text-xs text-muted-foreground'>
                   Free forever • Decentralized • Your data, your control
                 </p>
+
+                {/* Simple Email Option at Bottom */}
+                <div className='pt-4 border-t border-gray-200 dark:border-gray-700'>
+                  <p className='text-xs text-muted-foreground mb-2'>
+                    Prefer a simple start?
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className='w-full text-sm'
+                    onClick={() => setStep('email')}
+                  >
+                    Continue with Email Instead
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Email Step - Simple email signup */}
+          {step === 'email' && (
+            <div className='text-center space-y-4'>
+              <div className='relative p-6 rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-blue-950/50 dark:to-indigo-950/50'>
+                <div className='flex justify-center items-center mb-3'>
+                  <div className='w-16 h-16 bg-gradient-to-br from-blue-200 to-indigo-300 rounded-full flex items-center justify-center shadow-lg'>
+                    <UserPlus className='w-8 h-8 text-blue-800' />
+                  </div>
+                </div>
+                <p className='text-sm text-muted-foreground'>
+                  Create your account with email and get started quickly
+                </p>
+              </div>
+
+              {emailError && (
+                <div className='p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-lg'>
+                  <p className='text-sm text-red-600 dark:text-red-400'>{emailError}</p>
+                </div>
+              )}
+
+              <div className='space-y-4 text-left'>
+                <div className='space-y-2'>
+                  <label htmlFor='signup-email' className='text-sm font-medium'>
+                    Email Address
+                  </label>
+                  <Input
+                    id='signup-email'
+                    type='email'
+                    value={email}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      if (emailError) setEmailError('');
+                    }}
+                    placeholder='your@email.com'
+                    className='rounded-lg'
+                    disabled={emailAuth.isLoading}
+                  />
+                </div>
+
+                <div className='space-y-2'>
+                  <label htmlFor='signup-password' className='text-sm font-medium'>
+                    Password
+                  </label>
+                  <Input
+                    id='signup-password'
+                    type='password'
+                    value={password}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      if (emailError) setEmailError('');
+                    }}
+                    placeholder='Choose a strong password'
+                    className='rounded-lg'
+                    disabled={emailAuth.isLoading}
+                  />
+                  <p className='text-xs text-muted-foreground'>
+                    Must be at least 8 characters long
+                  </p>
+                </div>
+              </div>
+
+              <div className='space-y-3'>
+                <Button
+                  className='w-full rounded-full py-4 text-base font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 transform transition-all duration-200 hover:scale-105 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none'
+                  onClick={handleEmailSignup}
+                  disabled={emailAuth.isLoading || !email.trim() || !password.trim()}
+                >
+                  {emailAuth.isLoading ? (
+                    <>
+                      <div className='w-4 h-4 mr-2 border-2 border-current border-t-transparent rounded-full animate-spin' />
+                      Creating Account...
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus className='w-4 h-4 mr-2' />
+                      Create Account
+                    </>
+                  )}
+                </Button>
+
+                <Button
+                  variant='outline'
+                  className='w-full'
+                  onClick={() => setStep('welcome')}
+                  disabled={emailAuth.isLoading}
+                >
+                  Back to Options
+                </Button>
               </div>
             </div>
           )}

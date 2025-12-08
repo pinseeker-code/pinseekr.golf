@@ -12,9 +12,10 @@ export function useAuthor(pubkey: string | undefined) {
         return {};
       }
 
+      // Increase timeout to 5s to avoid spurious timeouts on slow relays
       const [event] = await nostr.query(
         [{ kinds: [0], authors: [pubkey!], limit: 1 }],
-        { signal: AbortSignal.any([signal, AbortSignal.timeout(1500)]) },
+        { signal: AbortSignal.any([signal, AbortSignal.timeout(5000)]) },
       );
 
       if (!event) {

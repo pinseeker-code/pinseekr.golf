@@ -1,283 +1,1140 @@
 import React, { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { GameMode, HoleScore, GolfRound } from '@/lib/golf/types';
-import { ScoringEngine } from '@/lib/golf/scoringEngine';
-import { Settings, Save, Share2 } from 'lucide-react';
+import { HoleScore, GolfRound } from '@/lib/golf/types';
+import { useRoundPersistence } from '@/hooks/useRoundPersistence';
+import { Scoreboard } from './Scoreboard';
+import { 
+  Save, 
+  Share2, 
+  ChevronLeft, 
+  ChevronRight, 
+  CheckCircle, 
+  XCircle,
+  Plus,
+  
+} from 'lucide-react';
+import { snakeEngine } from '@/lib/golf/snakeEngine';
+import { cn } from '@/lib/utils';
 
 interface ScoreCardProps {
   round: GolfRound;
+  course?: { 
+    holes: { [hole: number]: number };
+    sections?: { [sectionIndex: number]: string };
+  } | null; // Course par data
   onUpdateRound: (round: GolfRound) => void;
   onSaveRound: () => void;
-  onShareRound: () => void;
+  onShareRound?: () => void;
 }
 
 export const ScoreCard: React.FC<ScoreCardProps> = ({
   round,
+  course,
   onUpdateRound,
   onSaveRound,
   onShareRound
 }) => {
-  const [editingHole, setEditingHole] = useState<number | null>(null);
-  const [tempScores, setTempScores] = useState<{[key: string]: Partial<HoleScore>}>({});
+  const [currentHole, setCurrentHole] = useState(0);
+  const [currentPlayer, setCurrentPlayer] = useState(0);
+  const [activeTab, setActiveTab] = useState<'score' | 'others'>('score');
+  const [expandedPutts, setExpandedPutts] = useState(false);
+  const [expandedChips, setExpandedChips] = useState(false);
+  const [expandedSand, setExpandedSand] = useState(false);
+  const [expandedPenalties, setExpandedPenalties] = useState(false);
+  const [manualInput, setManualInput] = useState<{ field: string; value: string }>({ field: '', value: '' });
 
-  const scoringEngine = new ScoringEngine({
-    mode: round.gameMode,
-    players: round.players,
-    handicaps: {},
-    settings: { useHandicaps: true, netScoring: true }
-  });
-
-  const handleScoreChange = (playerId: string, holeIndex: number, field: keyof HoleScore, value: unknown) => {
-    const newScores = { ...tempScores };
-    const holeKey = `${playerId}-${holeIndex}`;
-
-    if (!newScores[holeKey]) {
-      newScores[holeKey] = {};
-    }
-
-    newScores[holeKey] = {
-      ...newScores[holeKey],
-      [field]: value
-    };
-
-    setTempScores(newScores);
+  // Helper function to get section name for current hole
+  const getCurrentSectionName = (): string | null => {
+    if (!course?.sections) return null;
+    
+    const holeNumber = currentHole + 1;
+    const sectionIndex = Math.floor((holeNumber - 1) / 9);
+    return course.sections[sectionIndex] || null;
   };
 
-  const saveHoleScores = (holeIndex: number) => {
-    const updatedRound = { ...round };
+  
+  
+  const { saveRound: persistRound } = useRoundPersistence(round.id || 'current-round');
 
-    round.players.forEach(player => {
-      const holeKey = `${player.playerId}-${holeIndex}`;
-      const tempScore = tempScores[holeKey];
+  const currentHoleData = round.holes[currentHole];
+  const player = round.players[currentPlayer];
+  const [playerDisplayMode, setPlayerDisplayMode] = useState<'total' | 'strokes'>('total');
 
-      if (tempScore) {
-        const hole = updatedRound.holes[holeIndex];
-        if (hole) {
-          Object.assign(hole, tempScore);
-        }
+  const getPlayerInitials = (name: string) => {
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  };
+
+
+  // Helper: get per-player per-hole details (falls back to hole-level values)
+  const getPlayerHoleDetails = (playerIndex: number, holeIndex: number) => {
+    const hole = round.holes?.[holeIndex] || { holeNumber: holeIndex + 1, par: 4 } as HoleScore;
+    const p = round.players[playerIndex];
+    const details = p.holeDetails?.[holeIndex] || {};
+
+    return {
+      strokes: p.scores?.[holeIndex] ?? 0,
+      putts: details.putts ?? hole.putts ?? 0,
+      fairways: typeof details.fairways === 'boolean' ? details.fairways : (hole.fairways ?? false),
+      greens: typeof details.greens === 'boolean' ? details.greens : (hole.greens ?? false),
+      chips: details.chips ?? hole.chips ?? 0,
+      sandTraps: details.sandTraps ?? hole.sandTraps ?? 0,
+      penalties: details.penalties ?? hole.penalties ?? 0,
+      notes: details.notes ?? hole.notes ?? '' ,
+      par: hole.par
+    };
+  };
+
+  const currentPlayerHole = getPlayerHoleDetails(currentPlayer, currentHole);
+
+  // Given a player's handicap and a hole's stroke index (1..18), calculate how many
+  // handicap strokes are allocated to that hole according to standard rules:
+  // base = floor(hcp/18), remainder = hcp % 18, additional stroke on holes with
+  // strokeIndex <= remainder.
+  const strokesGivenForHole = (handicap: number, holeStrokeIndex: number) => {
+    if (!handicap || handicap <= 0) return 0;
+    const base = Math.floor(handicap / 18);
+    const remainder = handicap % 18;
+    return base + (holeStrokeIndex <= remainder ? 1 : 0);
+  };
+
+  // Compute totals (gross and net) for a single player using per-hole handicap allocation
+  // Determine a hole's stroke index using a provided round object (makes the helper pure)
+  const getHoleStrokeIndexForRound = React.useCallback((r: GolfRound, holeIndex: number) => {
+    const hole = r.holes?.[holeIndex];
+    const holeNumber = hole?.holeNumber ?? holeIndex + 1;
+
+    if (hasStrokeIndexProp(hole)) return hole.strokeIndex;
+
+    const courseHole: unknown = course && (course.holes as unknown) ? (course.holes as unknown as Record<number, unknown>)[holeNumber] : undefined;
+    if (hasStrokeIndexProp(courseHole)) return courseHole.strokeIndex;
+
+    return holeNumber;
+  }, [course]);
+
+  // Compute totals (gross and net) for a single player using per-hole handicap allocation
+  const computePlayerTotals = React.useCallback((player: typeof round.players[number], r: GolfRound) => {
+    let total = 0;
+    let netTotal = 0;
+
+    // Calculate handicap stroke allocation for match play
+    let handicapStrokesGiven = 0;
+    if (r.players.length === 2) {
+      const p1 = r.players[0];
+      const p2 = r.players[1];
+      const p1Hcp = p1.handicap || 0;
+      const p2Hcp = p2.handicap || 0;
+      
+      // Only the higher handicap player gets strokes
+      const isHigherHandicap = player.handicap > (p1.playerId === player.playerId ? p2Hcp : p1Hcp);
+      if (isHigherHandicap) {
+        const strokeDifference = Math.abs(p1Hcp - p2Hcp);
+        handicapStrokesGiven = strokeDifference;
+      }
+    }
+
+    r.holes?.forEach((hole, holeIndex) => {
+      const strokes = (player.scores?.[holeIndex] ?? 0) as number;
+      if (strokes > 0) {
+        total += strokes;
+        const strokeIdx = getHoleStrokeIndexForRound(r, holeIndex);
+        const given = handicapStrokesGiven > 0 ? strokesGivenForHole(handicapStrokesGiven, strokeIdx) : 0;
+        netTotal += (strokes - given);
       }
     });
 
-    // Recalculate player totals
-    updatedRound.players = updatedRound.players.map(player => {
-      const scores = updatedRound.holes
-        .slice(0, player.scores.length)
-        .map((_, index) => player.scores[index] || 0);
+    return { total, netTotal };
+  }, [course]);
 
-      const total = scores.reduce((sum, score) => sum + score, 0);
-      const netTotal = scoringEngine.calculateNetScore(total, player.handicap);
-
+  // Recompute totals for all players in the round and update their fields
+  const computeTotalsInRound = React.useCallback((r: GolfRound) => {
+    r.players = r.players.map((p) => {
+      const { total, netTotal } = computePlayerTotals(p, r);
       return {
-        ...player,
-        scores,
+        ...p,
         total,
         netTotal
       };
     });
+  }, [computePlayerTotals]);
 
-    onUpdateRound(updatedRound);
-    setEditingHole(null);
-    setTempScores({});
+
+  // Cycle display under avatars between total and current hole strokes every 6s
+  React.useEffect(() => {
+    const id = setInterval(() => {
+      setPlayerDisplayMode(prev => prev === 'total' ? 'strokes' : 'total');
+    }, 6000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Calculate current snake holder for Snake game mode
+  const getCurrentSnakeHolder = (): string | null => {
+    // Support both single gameMode and gameModes array
+    const hasSnakeMode = round.gameMode === 'snake' || round.gameModes?.includes('snake');
+    if (!hasSnakeMode) return null;
+
+    // Build putts data directly from the holes data
+    const putts: { [playerId: string]: { [hole: number]: number } } = {};
+    round.players.forEach(player => {
+      putts[player.playerId] = {};
+      round.holes.forEach((hole, holeIndex) => {
+        // Only include holes up to current hole and only if putts are recorded
+        if (holeIndex <= currentHole && hole.putts > 0) {
+          putts[player.playerId][hole.holeNumber] = hole.putts;
+        }
+      });
+    });
+
+    // Create snake data structure
+    const snakeData = {
+      players: round.players.map(p => p.playerId),
+      strokes: round.players.reduce((acc, player) => {
+        acc[player.playerId] = {};
+        round.holes.forEach((hole, holeIndex) => {
+          if (holeIndex <= currentHole && player.scores[holeIndex] > 0) {
+            acc[player.playerId][hole.holeNumber] = player.scores[holeIndex];
+          }
+        });
+        return acc;
+      }, {} as { [playerId: string]: { [hole: number]: number } }),
+      course: {
+        holes: round.holes.reduce((acc, hole) => {
+          acc[hole.holeNumber] = { par: hole.par, strokeIndex: hole.holeNumber };
+          return acc;
+        }, {} as { [hole: number]: { par: number; strokeIndex: number } })
+      },
+      putts
+    };
+    
+    // Calculate snake result up to current hole
+    const result = snakeEngine(snakeData);
+    
+    // Return the snake holder for the most recent hole with data
+    if (result.holeByHole.length === 0) return null;
+    
+    const lastHole = result.holeByHole[result.holeByHole.length - 1];
+    return lastHole.snakeHolder;
   };
 
-  const getGameModeColor = (mode: GameMode): string => {
-    const colors: Record<GameMode, string> = {
-      [GameMode.STROKE_PLAY]: 'bg-blue-100 text-blue-800',
-      [GameMode.SKINS]: 'bg-green-100 text-green-800',
-      [GameMode.NASSAU]: 'bg-purple-100 text-purple-800',
-      [GameMode.MATCH_PLAY]: 'bg-red-100 text-red-800',
-      [GameMode.WOLF]: 'bg-yellow-100 text-yellow-800',
-      [GameMode.POINTS]: 'bg-indigo-100 text-indigo-800',
-      [GameMode.VEGAS]: 'bg-pink-100 text-pink-800',
-      [GameMode.SIXES]: 'bg-teal-100 text-teal-800',
-      [GameMode.DOTS]: 'bg-orange-100 text-orange-800',
-      [GameMode.ROLLING_STROKES]: 'bg-cyan-100 text-cyan-800',
-      [GameMode.SNAKE]: 'bg-lime-100 text-lime-800'
+  // Initialize holes with proper structure if needed
+  React.useEffect(() => {
+    if (!round.holes || round.holes.length === 0) {
+      // Determine number of holes from course data, default to 18
+      const numberOfHoles = course?.holes ? Math.max(...Object.keys(course.holes).map(Number)) : 18;
+      
+      const initialHoles: HoleScore[] = Array.from({ length: numberOfHoles }, (_, i) => {
+        const holeNumber = i + 1;
+        // Use course par data if available, otherwise default to par 4
+        const par = course?.holes?.[holeNumber] || 4;
+        
+        return {
+          holeNumber,
+          par,
+          strokes: 0,
+          putts: 0,
+          fairways: false,
+          greens: false,
+          chips: 0,
+          sandTraps: 0,
+          penalties: 0,
+          notes: ''
+        };
+      });
+
+      const updatedRound = {
+        ...round,
+        holes: initialHoles,
+        players: round.players.map(player => ({
+          ...player,
+          scores: Array(numberOfHoles).fill(0)
+        }))
+      };
+      
+      // Compute initial totals for each player
+      computeTotalsInRound(updatedRound);
+
+      onUpdateRound(updatedRound);
+    }
+  }, [round, course, onUpdateRound, computeTotalsInRound]);
+
+  const updateScore = (field: keyof HoleScore, value: unknown) => {
+    const updatedRound = { ...round };
+    
+    // Ensure holes array exists
+    if (!updatedRound.holes) {
+      updatedRound.holes = Array.from({ length: 18 }, (_, i) => ({
+        holeNumber: i + 1,
+        par: 4,
+        strokes: 0,
+        putts: 0,
+        fairways: false,
+        greens: false,
+        chips: 0,
+        sandTraps: 0,
+        penalties: 0,
+        notes: ''
+      }));
+    }
+
+    // Update the specific hole data
+    if (updatedRound.holes[currentHole]) {
+      updatedRound.holes[currentHole] = {
+        ...updatedRound.holes[currentHole],
+        [field]: value
+      };
+    }
+
+    // Update player scores array when strokes change
+      if (field === 'strokes' && typeof value === 'number') {
+      updatedRound.players = updatedRound.players.map((p, index) => {
+        if (index === currentPlayer) {
+          const newScores = [...p.scores];
+          newScores[currentHole] = value;
+          
+          // Calculate totals using proper handicap allocation
+          const { total, netTotal } = computePlayerTotals({ ...p, scores: newScores }, updatedRound);
+
+          return {
+            ...p,
+            scores: newScores,
+            total,
+            netTotal
+          };
+        }
+        return p;
+      });
+    } else {
+      // For non-stroke fields, store them in the player's per-hole details so
+      // stats are independent per player (putts, fairways, greens, chips, etc.)
+      updatedRound.players = updatedRound.players.map((p, index) => {
+        if (index === currentPlayer) {
+          const holeDetails = { ...(p.holeDetails || {}) } as Record<number, Record<string, unknown>>;
+          const hd = { ...(holeDetails[currentHole] || {}) } as Record<string, unknown>;
+          hd[field as string] = value as unknown;
+          holeDetails[currentHole] = hd;
+
+          return {
+            ...p,
+            holeDetails
+          };
+        }
+        return p;
+      });
+    }
+
+    // Auto-save to localStorage
+    // Recompute totals (gross/net) for all players after the update
+    computeTotalsInRound(updatedRound);
+
+    // Auto-save to localStorage
+    persistRound(updatedRound);
+    
+    onUpdateRound(updatedRound);
+  };
+
+
+
+  const getScoreColor = (strokes: number, par: number) => {
+    const diff = strokes - par;
+    if (diff <= -2) return 'text-green-400'; // Eagle or better
+    if (diff === -1) return 'text-green-300'; // Birdie
+    if (diff === 0) return 'text-white'; // Par
+    if (diff === 1) return 'text-yellow-300'; // Bogey
+    return 'text-red-400'; // Double bogey or worse
+  };
+
+  const getScoreName = (strokes: number, par: number) => {
+    const diff = strokes - par;
+    if (diff <= -3) return 'Albatross';
+    if (diff === -2) return 'Eagle';
+    if (diff === -1) return 'Birdie';
+    if (diff === 0) return 'Par';
+    if (diff === 1) return 'Bogey';
+    if (diff === 2) return 'Double Bogey';
+    return 'Triple+';
+  };
+
+  // Helper: detect objects that include a numeric strokeIndex property
+  const hasStrokeIndexProp = (v: unknown): v is { strokeIndex: number } => {
+    if (typeof v !== 'object' || v === null) return false;
+    const maybe = v as Record<string, unknown>;
+    return typeof maybe.strokeIndex === 'number';
+  };
+
+  // (old getHoleStrokeIndex removed; using getHoleStrokeIndexForRound instead)
+
+
+  // Calculate round statistics for current player
+  const calculatePlayerStats = (playerIndex: number) => {
+    const player = round.players[playerIndex];
+    const stats = {
+      holesPlayed: 0,
+      birdies: 0,
+      eagles: 0,
+      pars: 0,
+      bogeys: 0,
+      doubleBogeys: 0,
+      fairwaysHit: 0,
+      fairwaysTotal: 0,
+      greensHit: 0,
+      greensTotal: 0,
+      totalPutts: 0,
+      averagePutts: 0,
+      score: player.total || 0,
+      netScore: player.netTotal || 0
     };
 
-    return colors[mode] || 'bg-gray-100 text-gray-800';
+    round.holes?.forEach((hole, holeIndex) => {
+      const strokes = player.scores[holeIndex];
+      if (strokes > 0) {
+        stats.holesPlayed++;
+        const diff = strokes - hole.par;
+
+        // Score tracking
+        if (diff <= -2) stats.eagles++;
+        else if (diff === -1) stats.birdies++;
+        else if (diff === 0) stats.pars++;
+        else if (diff === 1) stats.bogeys++;
+        else if (diff >= 2) stats.doubleBogeys++;
+
+        // Fairway stats (exclude par 3s) - use per-player details first
+        if (hole.par > 3) {
+          stats.fairwaysTotal++;
+          const pHole = player.holeDetails?.[holeIndex];
+          if (pHole?.fairways) stats.fairwaysHit++;
+        }
+
+        // Green stats - per-player
+        stats.greensTotal++;
+        const pHole2 = player.holeDetails?.[holeIndex];
+        if (pHole2?.greens) stats.greensHit++;
+
+        // Putt stats - per-player then hole-level
+        const pHolePutts = player.holeDetails?.[holeIndex]?.putts;
+        const puttsToAdd = typeof pHolePutts === 'number' ? pHolePutts : (hole.putts || 0);
+        if (puttsToAdd > 0) {
+          stats.totalPutts += puttsToAdd;
+        }
+      }
+    });
+
+    stats.averagePutts = stats.holesPlayed > 0 ? stats.totalPutts / stats.holesPlayed : 0;
+    
+    return stats;
+  };
+
+  const currentPlayerStats = calculatePlayerStats(currentPlayer);
+
+  const nextHole = () => {
+    if (currentHole < round.holes.length - 1) {
+      setCurrentHole(currentHole + 1);
+    }
+  };
+
+  const prevHole = () => {
+    if (currentHole > 0) {
+      setCurrentHole(currentHole - 1);
+    }
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="h-8 w-8 bg-green-600 rounded-full flex items-center justify-center">
-                <span className="text-white font-bold">⛳</span>
-              </div>
-              <div>
-                <CardTitle className="text-2xl">{round.metadata.courseName}</CardTitle>
-                <p className="text-gray-600 dark:text-gray-400">
-                  {new Date(round.date).toLocaleDateString()} • {round.players.length} players
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Badge className={getGameModeColor(round.gameMode)}>
-                {round.gameMode.replace('-', ' ').toUpperCase()}
-              </Badge>
-              <Badge variant={round.status === 'completed' ? 'default' : 'secondary'}>
-                {round.status.toUpperCase()}
-              </Badge>
-            </div>
+    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-indigo-900 text-white">
+      {/* Header with hole info and navigation */}
+      <div className="flex items-center justify-between p-4 bg-black/20">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={prevHole}
+          disabled={currentHole === 0}
+          className="text-white hover:bg-white/10"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        
+        <div className="text-center">
+          <div className="text-2xl font-bold">Hole {currentHoleData?.holeNumber ?? (currentHole + 1)}</div>
+          <div className="text-sm text-purple-200">Par {currentHoleData?.par || course?.holes?.[currentHole + 1] || 4}</div>
+          <div className="text-xs text-purple-300">
+            {(() => {
+              const sectionName = getCurrentSectionName();
+              const courseName = round.metadata?.courseName;
+              if (courseName && sectionName) {
+                return `${courseName} - ${sectionName.toUpperCase()}`;
+              }
+              return courseName || 'Unknown Course';
+            })()}
           </div>
-        </CardHeader>
-      </Card>
-
-      {/* Score Table */}
-      <Card>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 dark:bg-gray-800">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Hole
-                  </th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Par
-                  </th>
-                  {round.players.map((player) => (
-                    <th key={player.playerId} className="px-4 py-3 text-center">
-                      <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        {player.name}
-                      </div>
-                      <div className="text-xs text-gray-400 dark:text-gray-500">
-                        {player.handicap > 0 ? `+${player.handicap}` : ''}
-                      </div>
-                    </th>
-                  ))}
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Total
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                {round.holes.map((hole, holeIndex) => (
-                  <tr key={hole.holeNumber} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                    <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">
-                      {hole.holeNumber}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-center text-gray-600 dark:text-gray-400">
-                      {hole.par}
-                    </td>
-
-                    {round.players.map((player) => {
-                      const holeKey = `${player.playerId}-${holeIndex}`;
-                      const tempScore = tempScores[holeKey];
-                      const isEditing = editingHole === holeIndex;
-                      const playerScore = player.scores[holeIndex] || 0;
-
-                      return (
-                        <td key={player.playerId} className="px-2 py-3 text-center">
-                          {isEditing ? (
-                            <div className="space-y-1">
-                              <Input
-                                type="number"
-                                min="0"
-                                max="20"
-                                value={tempScore?.strokes || playerScore || ''}
-                                onChange={(e) => handleScoreChange(player.playerId, holeIndex, 'strokes', parseInt(e.target.value) || 0)}
-                                className="w-16 text-center"
-                              />
-                              <Input
-                                type="number"
-                                min="0"
-                                max="10"
-                                value={tempScore?.putts || hole.putts || ''}
-                                onChange={(e) => handleScoreChange(player.playerId, holeIndex, 'putts', parseInt(e.target.value) || 0)}
-                                className="w-16 text-center text-xs"
-                              />
-                            </div>
-                          ) : (
-                            <div className="space-y-1">
-                              <div className="text-sm font-medium">
-                                {playerScore}
-                              </div>
-                              <div className="text-xs text-gray-500 dark:text-gray-400">
-                                {hole.putts}
-                              </div>
-                            </div>
-                          )}
-                        </td>
-                      );
-                    })}
-
-                    <td className="px-4 py-3 text-sm text-center font-medium">
-                      {round.players[0]?.scores[holeIndex] || 0}
-                    </td>
-                  </tr>
-                ))}
-
-                {/* Total Row */}
-                <tr className="bg-gray-50 dark:bg-gray-800 font-semibold">
-                  <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">
-                    Total
-                  </td>
-                  <td className="px-4 py-3 text-sm text-center text-gray-600 dark:text-gray-400">
-                    {round.holes.reduce((sum, hole) => sum + hole.par, 0)}
-                  </td>
-
-                  {round.players.map((player) => (
-                    <td key={player.playerId} className="px-4 py-3 text-center">
-                      <div className="text-lg font-bold">
-                        {player.total}
-                      </div>
-                      {player.handicap > 0 && (
-                        <div className="text-sm text-gray-500 dark:text-gray-400">
-                          ({player.netTotal})
-                        </div>
-                      )}
-                    </td>
-                  ))}
-
-                  <td className="px-4 py-3 text-sm text-center font-medium">
-                    {round.players[0]?.total || 0}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Action Buttons */}
-      <div className="flex justify-between items-center">
-        <div className="flex space-x-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setEditingHole(editingHole === null ? 0 : null)}
-          >
-            <Settings className="mr-2 h-4 w-4" />
-            {editingHole === null ? 'Edit Scores' : 'View Mode'}
-          </Button>
-
-          {editingHole !== null && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => saveHoleScores(editingHole)}
-            >
-              Save Hole {editingHole + 1}
-            </Button>
+          
+          {/* Show current player's score if they've entered it */}
+          {player.scores[currentHole] > 0 && (
+            <div className="mt-1">
+              <span className={cn(
+                "text-lg font-bold",
+                getScoreColor(player.scores[currentHole], currentHoleData?.par || course?.holes?.[currentHole + 1] || 4)
+              )}>
+                {player.scores[currentHole]}
+              </span>
+              <span className="text-xs text-purple-300 ml-1">
+                ({getScoreName(player.scores[currentHole], currentHoleData?.par || course?.holes?.[currentHole + 1] || 4)})
+              </span>
+            </div>
           )}
         </div>
 
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={nextHole}
+          disabled={currentHole === round.holes.length - 1}
+          className="text-white hover:bg-white/10"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
+
+      {/* Player selector */}
+      <div className="flex justify-center px-4 py-2 bg-black/10">
+        <div className="flex space-x-4">
+          {round.players.map((p, index) => {
+            const currentSnakeHolder = getCurrentSnakeHolder();
+            const hasSnake = currentSnakeHolder === p.playerId;
+            const hasSnakeMode = round.gameMode === 'snake' || round.gameModes?.includes('snake');
+            const playerHasThreePutt = !!Object.values(p.holeDetails || {}).some((hd: unknown) => {
+              const h = hd as Record<string, unknown> | undefined;
+              const putts = h && typeof h.putts === 'number' ? (h.putts as number) : 0;
+              return putts >= 3;
+            });
+            
+            return (
+              <button
+                key={p.playerId}
+                onClick={() => setCurrentPlayer(index)}
+                className={cn(
+                  "flex flex-col items-center space-y-1 transition-all relative",
+                  currentPlayer === index ? "opacity-100" : "opacity-60 hover:opacity-80"
+                )}
+              >
+                <div className="relative">
+                  <Avatar className={cn(
+                    "h-12 w-12 border-2 transition-all",
+                    currentPlayer === index 
+                      ? "border-yellow-400 shadow-lg shadow-yellow-400/25" 
+                      : "border-purple-300"
+                  )}>
+                    <AvatarFallback className="bg-purple-600 text-white">
+                      {getPlayerInitials(p.name)}
+                    </AvatarFallback>
+                  </Avatar>
+                  {(hasSnake || (hasSnakeMode && playerHasThreePutt)) && (
+                    <div className="absolute -bottom-1 -right-1 text-base drop-shadow-lg">
+                      🐍
+                    </div>
+                  )}
+                </div>
+                <div className="text-xs text-center">
+                  <div className="font-medium">
+                    {p.name.split(' ')[0]}
+                  </div>
+                  <div className="text-purple-200">
+                    {playerDisplayMode === 'total' ? (p.total || '-') : (p.scores[currentHole] || '-')}
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+          
+          <button className="flex flex-col items-center space-y-1 opacity-60 hover:opacity-80">
+            <div className="h-12 w-12 border-2 border-dashed border-purple-300 rounded-full flex items-center justify-center">
+              <Plus className="h-6 w-6 text-purple-300" />
+            </div>
+            <div className="text-xs text-purple-300">Add Player</div>
+          </button>
+        </div>
+      </div>
+
+
+      {/* Main scoring area */}
+      <div className="flex-1 p-4">
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'score' | 'others')} className="w-full">
+          <TabsList className="grid w-full grid-cols-2 mb-6 bg-black/20 border-purple-400/20">
+            <TabsTrigger 
+              value="score" 
+              className="text-white data-[state=active]:bg-yellow-500 data-[state=active]:text-black"
+            >
+              Score
+            </TabsTrigger>
+            <TabsTrigger 
+              value="others" 
+              className="text-white data-[state=active]:bg-yellow-500 data-[state=active]:text-black"
+            >
+              Others
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="score" className="space-y-6">
+            {/* Score buttons */}
+            <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-3">
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((score) => {
+                  const isPar = score === (currentHoleData?.par || course?.holes?.[currentHole + 1] || 4);
+                  const currentScore = player?.scores[currentHole];
+                  const isSelected = currentScore === score;
+                  
+                  return (
+                    <Button
+                      key={score}
+                      onClick={() => updateScore('strokes', score)}
+                      className={cn(
+                        "h-16 text-xl font-bold transition-all",
+                        isSelected ? "bg-yellow-500 hover:bg-yellow-400 text-black border-2 border-yellow-700" :
+                        "bg-white/10 hover:bg-white/20 text-white border border-purple-300"
+                      )}
+                    >
+                      {score}
+                      {isPar && <div className="text-xs text-purple-200">Par</div>}
+                    </Button>
+                  );
+                })}
+              </div>
+              
+              {/* 10+ button or manual input */}
+              {manualInput.field === 'strokes' ? (
+                <div className="flex space-x-2">
+                  <Input
+                    type="number"
+                    min="1"
+                    max="20"
+                    value={manualInput.value}
+                    onChange={(e) => setManualInput({ field: 'strokes', value: e.target.value })}
+                    className="flex-1 h-12 bg-white/10 border-purple-300 text-white"
+                    placeholder="Enter score"
+                    autoFocus
+                  />
+                  <Button
+                    onClick={() => {
+                      if (manualInput.value && parseInt(manualInput.value) > 0) {
+                        updateScore('strokes', parseInt(manualInput.value));
+                      }
+                      setManualInput({ field: '', value: '' });
+                    }}
+                    className="h-12 px-4 bg-green-600 hover:bg-green-700"
+                  >
+                    ✓
+                  </Button>
+                  <Button
+                    onClick={() => setManualInput({ field: '', value: '' })}
+                    className="h-12 px-4 bg-red-600 hover:bg-red-700"
+                  >
+                    ✗
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  onClick={() => setManualInput({ field: 'strokes', value: '' })}
+                  className="flex-1 h-12 bg-white/10 hover:bg-white/20 text-white border border-purple-300"
+                >
+                  <div className="text-center">
+                    <div className="text-sm font-bold">10+</div>
+                    <div className="text-xs">Tap to enter manually</div>
+                  </div>
+                </Button>
+              )}
+            </div>
+
+            {/* Putts */}
+            <div className="space-y-3">
+              <h3 className="text-lg font-semibold">Putts</h3>
+              <div className="space-y-2">
+                {/* First row: 0-3 and 4+ button */}
+                <div className="flex space-x-3">
+                  {[0, 1, 2, 3].map((putts) => (
+                    <Button
+                      key={putts}
+                      onClick={() => {
+                        updateScore('putts', putts);
+                        setExpandedPutts(false);
+                      }}
+                      className={cn(
+                        "flex-1 h-12 transition-all",
+                        (currentPlayerHole?.putts || 0) === putts ? 
+                        "bg-purple-500 text-white border-2 border-yellow-400" :
+                        "bg-white/10 hover:bg-white/20 text-white border border-purple-300"
+                      )}
+                    >
+                      {putts}
+                    </Button>
+                  ))}
+                  <Button
+                    onClick={() => {
+                      if (!expandedPutts) {
+                        setExpandedPutts(true);
+                      } else {
+                        updateScore('putts', 4);
+                        setExpandedPutts(false);
+                      }
+                    }}
+                    className={cn(
+                      "flex-1 h-12 transition-all",
+                      (currentPlayerHole?.putts || 0) >= 4 ? 
+                      "bg-purple-500 text-white border-2 border-yellow-400" :
+                      "bg-white/10 hover:bg-white/20 text-white border border-purple-300"
+                    )}
+                  >
+                          {(currentPlayerHole?.putts || 0) >= 4 ? (currentPlayerHole?.putts || 4) : (expandedPutts ? '4' : '4+')}
+                  </Button>
+                </div>
+                
+                {/* Second row: 5-9 (only shown when expanded) */}
+                {expandedPutts && (
+                  <div className="flex space-x-3">
+                    {[5, 6, 7, 8, 9].map((putts) => (
+                      <Button
+                        key={putts}
+                        onClick={() => {
+                          updateScore('putts', putts);
+                          setExpandedPutts(false);
+                        }}
+                        className={cn(
+                          "flex-1 h-12 transition-all",
+                          (currentPlayerHole?.putts || 0) === putts ? 
+                          "bg-purple-500 text-white border-2 border-yellow-400" :
+                          "bg-white/10 hover:bg-white/20 text-white border border-purple-300"
+                        )}
+                      >
+                        {putts}
+                      </Button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Fairway Hit */}
+            <div className="space-y-3">
+              <h3 className="text-lg font-semibold">Fairway Hit</h3>
+              <div className="flex space-x-4">
+                <Button
+                  onClick={() => updateScore('fairways', true)}
+                  className={cn(
+                    "flex-1 h-12 flex items-center justify-center space-x-2",
+                    currentPlayerHole?.fairways ? 
+                    "bg-green-500 hover:bg-green-400 text-white" :
+                    "bg-white/10 hover:bg-white/20 text-white border border-purple-300"
+                  )}
+                >
+                  <CheckCircle className="h-5 w-5" />
+                  <span>Hit</span>
+                </Button>
+                <Button
+                  onClick={() => updateScore('fairways', false)}
+                  className={cn(
+                    "flex-1 h-12 flex items-center justify-center space-x-2",
+                    currentPlayerHole?.fairways === false ? 
+                    "bg-red-500 hover:bg-red-400 text-white" :
+                    "bg-white/10 hover:bg-white/20 text-white border border-purple-300"
+                  )}
+                >
+                  <XCircle className="h-5 w-5" />
+                  <span>Miss</span>
+                </Button>
+              </div>
+            </div>
+
+            {/* Greens in Regulation */}
+            <div className="space-y-3">
+              <h3 className="text-lg font-semibold">Greens in Regulation</h3>
+              <div className="flex space-x-4">
+                <Button
+                  onClick={() => updateScore('greens', true)}
+                  className={cn(
+                    "flex-1 h-12 flex items-center justify-center space-x-2",
+                    currentPlayerHole?.greens ? 
+                    "bg-green-500 hover:bg-green-400 text-white" :
+                    "bg-white/10 hover:bg-white/20 text-white border border-purple-300"
+                  )}
+                >
+                  <CheckCircle className="h-5 w-5" />
+                  <span>Hit</span>
+                </Button>
+                <Button
+                  onClick={() => updateScore('greens', false)}
+                  className={cn(
+                    "flex-1 h-12 flex items-center justify-center space-x-2",
+                    currentPlayerHole?.greens === false ? 
+                    "bg-red-500 hover:bg-red-400 text-white" :
+                    "bg-white/10 hover:bg-white/20 text-white border border-purple-300"
+                  )}
+                >
+                  <XCircle className="h-5 w-5" />
+                  <span>Miss</span>
+                </Button>
+              </div>
+            </div>
+
+            {/* Penalties */}
+            <div className="space-y-3">
+              <h3 className="text-lg font-semibold">Penalties</h3>
+              <div className="space-y-2">
+                {/* First row: 0-3 and 4+ button */}
+                <div className="flex space-x-3">
+                  {[0, 1, 2, 3].map((penalty) => (
+                    <Button
+                      key={penalty}
+                      onClick={() => {
+                        updateScore('penalties', penalty);
+                        setExpandedPenalties(false);
+                      }}
+                      className={cn(
+                        "flex-1 h-12 transition-all",
+                        (currentPlayerHole?.penalties || 0) === penalty ? 
+                        "bg-purple-500 text-white border-2 border-yellow-400" :
+                        "bg-white/10 hover:bg-white/20 text-white border border-purple-300"
+                      )}
+                    >
+                      {penalty}
+                    </Button>
+                  ))}
+                  <Button
+                    onClick={() => {
+                      if (!expandedPenalties) {
+                        setExpandedPenalties(true);
+                      } else {
+                        updateScore('penalties', 4);
+                        setExpandedPenalties(false);
+                      }
+                    }}
+                    className={cn(
+                      "flex-1 h-12 transition-all",
+                      (currentPlayerHole?.penalties || 0) >= 4 ? 
+                      "bg-purple-500 text-white border-2 border-yellow-400" :
+                      "bg-white/10 hover:bg-white/20 text-white border border-purple-300"
+                    )}
+                  >
+                    {(currentPlayerHole?.penalties || 0) >= 4 ? (currentPlayerHole?.penalties || 4) : (expandedPenalties ? '4' : '4+')}
+                  </Button>
+                </div>
+                
+                {/* Second row: 5-9 (only shown when expanded) */}
+                {expandedPenalties && (
+                  <div className="flex space-x-3">
+                    {[5, 6, 7, 8, 9].map((penalty) => (
+                      <Button
+                        key={penalty}
+                        onClick={() => {
+                          updateScore('penalties', penalty);
+                          setExpandedPenalties(false);
+                        }}
+                        className={cn(
+                          "flex-1 h-12 transition-all",
+                              (currentPlayerHole?.penalties || 0) === penalty ? 
+                          "bg-purple-500 text-white border-2 border-yellow-400" :
+                          "bg-white/10 hover:bg-white/20 text-white border border-purple-300"
+                        )}
+                      >
+                        {penalty}
+                      </Button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Chip Shots */}
+            <div className="space-y-3">
+              <h3 className="text-lg font-semibold">Chip Shots</h3>
+              <div className="space-y-2">
+                {/* First row: 0-3 and 4+ button */}
+                <div className="flex space-x-3">
+                  {[0, 1, 2, 3].map((chips) => (
+                    <Button
+                      key={chips}
+                      onClick={() => {
+                        updateScore('chips', chips);
+                        setExpandedChips(false);
+                      }}
+                      className={cn(
+                        "flex-1 h-12 transition-all",
+                        (currentPlayerHole?.chips || 0) === chips ? 
+                        "bg-purple-500 text-white border-2 border-yellow-400" :
+                        "bg-white/10 hover:bg-white/20 text-white border border-purple-300"
+                      )}
+                    >
+                      {chips}
+                    </Button>
+                  ))}
+                  <Button
+                    onClick={() => {
+                      if (!expandedChips) {
+                        setExpandedChips(true);
+                      } else {
+                        updateScore('chips', 4);
+                        setExpandedChips(false);
+                      }
+                    }}
+                    className={cn(
+                      "flex-1 h-12 transition-all",
+                      (currentPlayerHole?.chips || 0) >= 4 ? 
+                      "bg-purple-500 text-white border-2 border-yellow-400" :
+                      "bg-white/10 hover:bg-white/20 text-white border border-purple-300"
+                    )}
+                  >
+                    {(currentPlayerHole?.chips || 0) >= 4 ? (currentPlayerHole?.chips || 4) : (expandedChips ? '4' : '4+')}
+                  </Button>
+                </div>
+                
+                {/* Second row: 5-9 (only shown when expanded) */}
+                {expandedChips && (
+                  <div className="flex space-x-3">
+                    {[5, 6, 7, 8, 9].map((chips) => (
+                      <Button
+                        key={chips}
+                        onClick={() => {
+                          updateScore('chips', chips);
+                          setExpandedChips(false);
+                        }}
+                        className={cn(
+                          "flex-1 h-12 transition-all",
+                          (currentPlayerHole?.chips || 0) === chips ? 
+                          "bg-purple-500 text-white border-2 border-yellow-400" :
+                          "bg-white/10 hover:bg-white/20 text-white border border-purple-300"
+                        )}
+                      >
+                        {chips}
+                      </Button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Greenside Sand Shots */}
+            <div className="space-y-3">
+              <h3 className="text-lg font-semibold">Bunker Shots</h3>
+              <div className="space-y-2">
+                {/* First row: 0-3 and 4+ button */}
+                <div className="flex space-x-3">
+                  {[0, 1, 2, 3].map((sand) => (
+                    <Button
+                      key={sand}
+                      onClick={() => {
+                        updateScore('sandTraps', sand);
+                        setExpandedSand(false);
+                      }}
+                      className={cn(
+                        "flex-1 h-12 transition-all",
+                        (currentPlayerHole?.sandTraps || 0) === sand ? 
+                        "bg-purple-500 text-white border-2 border-yellow-400" :
+                        "bg-white/10 hover:bg-white/20 text-white border border-purple-300"
+                      )}
+                    >
+                      {sand}
+                    </Button>
+                  ))}
+                  <Button
+                    onClick={() => {
+                      if (!expandedSand) {
+                        setExpandedSand(true);
+                      } else {
+                        updateScore('sandTraps', 4);
+                        setExpandedSand(false);
+                      }
+                    }}
+                    className={cn(
+                      "flex-1 h-12 transition-all",
+                      (currentPlayerHole?.sandTraps || 0) >= 4 ? 
+                      "bg-purple-500 text-white border-2 border-yellow-400" :
+                      "bg-white/10 hover:bg-white/20 text-white border border-purple-300"
+                    )}
+                  >
+                    {(currentPlayerHole?.sandTraps || 0) >= 4 ? (currentPlayerHole?.sandTraps || 4) : (expandedSand ? '4' : '4+')}
+                  </Button>
+                </div>
+                
+                {/* Second row: 5-9 (only shown when expanded) */}
+                {expandedSand && (
+                  <div className="flex space-x-3">
+                    {[5, 6, 7, 8, 9].map((sand) => (
+                      <Button
+                        key={sand}
+                        onClick={() => {
+                          updateScore('sandTraps', sand);
+                          setExpandedSand(false);
+                        }}
+                        className={cn(
+                          "flex-1 h-12 transition-all",
+                          (currentPlayerHole?.sandTraps || 0) === sand ? 
+                          "bg-purple-500 text-white border-2 border-yellow-400" :
+                          "bg-white/10 hover:bg-white/20 text-white border border-purple-300"
+                        )}
+                      >
+                        {sand}
+                      </Button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="others" className="space-y-4">
+            {/* Full Scoreboard */}
+            <div className="mb-4">
+              <h4 className="text-sm font-medium text-purple-200 mb-2">Scoreboard</h4>
+              <Scoreboard
+                round={round}
+                course={course}
+                currentHoleIndex={currentHole}
+                compact
+                className="bg-black/20 p-3 rounded-lg"
+              />
+            </div>
+
+            {/* Other players' scores for this hole */}
+            <div className="space-y-3">
+              <h4 className="text-sm font-medium text-purple-200">This Hole</h4>
+              {round.players.filter((_, index) => index !== currentPlayer).map((p, _index) => (
+                <div key={p.playerId} className="flex items-center justify-between p-3 bg-white/10 rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback className="bg-purple-600 text-white text-sm">
+                        {getPlayerInitials(p.name)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="font-medium">{p.name}</span>
+                  </div>
+                  <div className="text-lg font-bold">
+                    {p.scores[currentHole] || '-'}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </TabsContent>
+        </Tabs>
+      </div>
+
+      {/* Round Statistics */}
+      {currentPlayerStats.holesPlayed > 0 && (
+        <div className="p-4 bg-black/20 space-y-4">
+          <h3 className="text-lg font-semibold text-white">Round Statistics</h3>
+          
+          {/* Score Breakdown */}
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-purple-200">Eagles:</span>
+                <span className="text-green-400 font-medium">{currentPlayerStats.eagles}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-purple-200">Birdies:</span>
+                <span className="text-green-300 font-medium">{currentPlayerStats.birdies}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-purple-200">Pars:</span>
+                <span className="text-white font-medium">{currentPlayerStats.pars}</span>
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-purple-200">Bogeys:</span>
+                <span className="text-yellow-300 font-medium">{currentPlayerStats.bogeys}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-purple-200">Double+:</span>
+                <span className="text-red-400 font-medium">{currentPlayerStats.doubleBogeys}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-purple-200">Total Score:</span>
+                <span className="text-white font-bold">{currentPlayerStats.score}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Performance Stats */}
+          <div className="grid grid-cols-3 gap-4 p-3 bg-white/10 rounded-lg">
+            <div className="text-center">
+              <div className="text-lg font-bold text-white">
+                {currentPlayerStats.fairwaysTotal > 0 ? 
+                  Math.round((currentPlayerStats.fairwaysHit / currentPlayerStats.fairwaysTotal) * 100) : 0}%
+              </div>
+              <div className="text-xs text-purple-200">Fairways</div>
+              <div className="text-xs text-purple-300">
+                {currentPlayerStats.fairwaysHit}/{currentPlayerStats.fairwaysTotal}
+              </div>
+            </div>
+            
+            <div className="text-center">
+              <div className="text-lg font-bold text-white">
+                {currentPlayerStats.greensTotal > 0 ? 
+                  Math.round((currentPlayerStats.greensHit / currentPlayerStats.greensTotal) * 100) : 0}%
+              </div>
+              <div className="text-xs text-purple-200">Greens</div>
+              <div className="text-xs text-purple-300">
+                {currentPlayerStats.greensHit}/{currentPlayerStats.greensTotal}
+              </div>
+            </div>
+            
+            <div className="text-center">
+              <div className="text-lg font-bold text-white">
+                {currentPlayerStats.averagePutts.toFixed(1)}
+              </div>
+              <div className="text-xs text-purple-200">Avg Putts</div>
+              <div className="text-xs text-purple-300">
+                {currentPlayerStats.totalPutts} total
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bottom navigation */}
+      <div className="p-4 bg-black/20 space-y-3">
+        <div className="flex items-center justify-between p-3 bg-yellow-500 text-black rounded-lg font-medium">
+          <div className="flex items-center space-x-3">
+            <span>Hole {currentHole + 1} of {round.holes.length}</span>
+            <span className="text-yellow-800">•</span>
+            <span>{player.name}</span>
+          </div>
+          
+          <div className="flex items-center space-x-2">
+            <Button
+              onClick={prevHole}
+              disabled={currentHole === 0}
+              variant="outline"
+              className="border-yellow-700 text-yellow-900 hover:bg-yellow-600"
+            >
+              <ChevronLeft className="h-4 w-4 mr-1" />
+              Previous
+            </Button>
+            <Button
+              onClick={() => {
+                if (currentHole === round.holes.length - 1) {
+                  onSaveRound();
+                } else {
+                  nextHole();
+                }
+              }}
+              disabled={currentHole === round.holes.length - 1 && currentPlayerStats.holesPlayed < round.holes.length}
+              className="bg-yellow-600 hover:bg-yellow-700 text-black"
+            >
+              {currentHole === round.holes.length - 1 ? 'Finish Round' : 'Next Hole'}
+              <ChevronRight className="h-4 w-4 ml-1" />
+            </Button>
+          </div>
+        </div>
+
         <div className="flex space-x-2">
-          <Button variant="outline" onClick={onShareRound}>
-            <Share2 className="mr-2 h-4 w-4" />
-            Share
-          </Button>
-          <Button onClick={onSaveRound}>
+          {onShareRound && (
+            <Button variant="outline" onClick={onShareRound} className="flex-1 border-purple-300 text-white hover:bg-white/10">
+              <Share2 className="mr-2 h-4 w-4" />
+              Share
+            </Button>
+          )}
+          <Button onClick={onSaveRound} className="flex-1 bg-purple-600 hover:bg-purple-700">
             <Save className="mr-2 h-4 w-4" />
-            Save Round
+            Save
           </Button>
         </div>
       </div>

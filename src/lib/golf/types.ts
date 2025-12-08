@@ -9,7 +9,6 @@ export enum GameMode {
   VEGAS = 'vegas',
   SIXES = 'sixes',
   DOTS = 'dots',
-  ROLLING_STROKES = 'rolling-strokes',
   SNAKE = 'snake'
 }
 
@@ -31,6 +30,9 @@ export const GOLF_KINDS = {
   BADGE_AWARD: 30006,    // Badge achievement awards
   TOURNAMENT: 30007,     // Tournament events
   COURSE: 30008,         // Golf course metadata
+  // Additional project kinds
+  PLAYER_SCORE: 30010,   // per-player score updates (addressable)
+  INVITE_ACCEPT: 30011,  // player invite accept proof
 } as const;
 
 // Player in a round
@@ -41,6 +43,19 @@ export interface PlayerInRound {
   scores: number[];
   total: number;
   netTotal: number;
+  // Optional invitation/verification state
+  invited?: boolean;
+  verified?: boolean;
+  // Per-player, per-hole detailed stats (putts, fairways, greens, etc.)
+  holeDetails?: Record<number, {
+    putts?: number;
+    fairways?: boolean;
+    greens?: boolean;
+    chips?: number;
+    sandTraps?: number;
+    penalties?: number;
+    notes?: string;
+  }>;
 }
 
 // Individual hole score
@@ -51,6 +66,7 @@ export interface HoleScore {
   putts: number;
   fairways: boolean;
   greens: boolean;
+  chips: number;
   sandTraps: number;
   penalties: number;
   notes?: string;
@@ -63,6 +79,7 @@ export interface GolfRound {
   date: number;
   players: PlayerInRound[];
   gameMode: GameMode;
+  gameModes?: string[]; // Multiple active game modes (stroke, match, snake, etc.)
   holes: HoleScore[];
   status: 'active' | 'completed' | 'cancelled';
   metadata: RoundMetadata;
@@ -73,8 +90,10 @@ export interface RoundMetadata {
   courseName: string;
   courseLocation?: string;
   teeBox?: string;
+  teeYardage?: number;
   weather?: string;
   notes?: string;
+  selectedSection?: string; // Selected 9-hole section index
 }
 
 // Badge definition
@@ -117,4 +136,5 @@ export interface GameSettings {
   netScoring: boolean;
   allowWagers?: boolean;
   maxHoles?: number;
+  modifiedStableford?: boolean; // if true, use modified Stableford table
 }

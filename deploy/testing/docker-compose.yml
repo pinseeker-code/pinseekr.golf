@@ -1,0 +1,58 @@
+# Testing deployment for friends & family testing
+# Includes frontend + relay with minimal configuration
+
+version: "3.8"
+
+services:
+  # MongoDB for Grain relay
+  mongodb:
+    image: mongo:7
+    container_name: pinseekr-mongodb
+    restart: unless-stopped
+    volumes:
+      - ./data/mongo:/data/db
+    networks:
+      - pinseekr
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Grain Nostr relay
+  relay:
+    image: ghcr.io/0ceanslim/grain:latest
+    container_name: pinseekr-relay
+    restart: unless-stopped
+    volumes:
+      - ./relay-config:/app/config
+    environment:
+      - MONGO_URI=mongodb://mongodb:27017/
+      - MONGO_DATABASE=pinseekr_testing
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - pinseekr
+
+  # Caddy serves frontend + reverse proxy with auto SSL
+  caddy:
+    image: caddy:2-alpine
+    container_name: pinseekr-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ../../dist:/srv:ro
+      - ./data/caddy:/data
+      - ./data/caddy_config:/config
+    depends_on:
+      - relay
+    networks:
+      - pinseekr
+
+networks:
+  pinseekr:
+    driver: bridge

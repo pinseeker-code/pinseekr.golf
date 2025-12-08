@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, forwardRef } from 'react';
-import { Zap, Copy, Check, ExternalLink, Sparkle, Sparkles, Star, Rocket, ArrowLeft, X } from 'lucide-react';
+import { Zap, Copy, Check, ExternalLink, Sparkle, Sparkles, Star, Rocket, ArrowLeft, X, Wallet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import {
@@ -31,6 +31,7 @@ import { useToast } from '@/hooks/useToast';
 import { useZaps } from '@/hooks/useZaps';
 import { useWallet } from '@/hooks/useWallet';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { launchModal as launchBitcoinConnectModal } from '@getalby/bitcoin-connect-react';
 import type { Event } from 'nostr-tools';
 import QRCode from 'qrcode';
 
@@ -63,6 +64,7 @@ interface ZapContentProps {
   setComment: (comment: string) => void;
   inputRef: React.RefObject<HTMLInputElement>;
   zap: (amount: number, comment: string) => void;
+  onConnectWallet: () => void;
 }
 
 // Moved ZapContent outside of ZapDialog to prevent re-renders causing focus loss
@@ -81,6 +83,7 @@ const ZapContent = forwardRef<HTMLDivElement, ZapContentProps>(({
   setComment,
   inputRef,
   zap,
+  onConnectWallet,
 }, ref) => (
   <div ref={ref}>
     {invoice ? (
@@ -138,7 +141,7 @@ const ZapContent = forwardRef<HTMLDivElement, ZapContentProps>(({
 
           {/* Payment buttons */}
           <div className="space-y-3 mt-4">
-            {hasWebLN && (
+            {hasWebLN ? (
               <Button
                 onClick={() => {
                   const finalAmount = typeof amount === 'string' ? parseInt(amount, 10) : amount;
@@ -150,6 +153,16 @@ const ZapContent = forwardRef<HTMLDivElement, ZapContentProps>(({
               >
                 <Zap className="h-4 w-4 mr-2" />
                 {isZapping ? "Processing..." : "Pay with WebLN"}
+              </Button>
+            ) : (
+              <Button
+                onClick={onConnectWallet}
+                className="w-full"
+                size="lg"
+                variant="default"
+              >
+                <Wallet className="h-4 w-4 mr-2" />
+                Connect Wallet to Pay
               </Button>
             )}
 
@@ -338,6 +351,10 @@ export function ZapDialog({ target, children, className }: ZapDialogProps) {
     zap(finalAmount, comment);
   };
 
+  const handleConnectWallet = () => {
+    launchBitcoinConnectModal();
+  };
+
   const contentProps = {
     invoice,
     amount,
@@ -353,6 +370,7 @@ export function ZapDialog({ target, children, className }: ZapDialogProps) {
     setComment,
     inputRef,
     zap,
+    onConnectWallet: handleConnectWallet,
   };
 
   if (!user || user.pubkey === target.pubkey || !author?.metadata?.lud06 && !author?.metadata?.lud16) {

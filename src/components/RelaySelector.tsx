@@ -1,4 +1,4 @@
-import { Check, ChevronsUpDown, Wifi, Plus } from "lucide-react";
+import { Check, ChevronsUpDown, Wifi, Plus, RefreshCw, Radio } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,8 +14,9 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAppContext } from "@/hooks/useAppContext";
+import { fetchRelayDiscovery, type DiscoveredRelay } from '@/lib/relayDiscovery';
 
 interface RelaySelectorProps {
   className?: string;
@@ -32,6 +33,27 @@ export function RelaySelector(props: RelaySelectorProps) {
 
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState("");
+  const [discovered, setDiscovered] = useState<DiscoveredRelay[]>([]);
+
+  // Extract host from relay URL for discovery
+  const relayHost = (() => {
+    try { return new URL(config.relayUrl).host; } catch { return config.relayUrl; }
+  })();
+
+  // Auto-discover Pyramid sub-relays on mount/relay change
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const rels = await fetchRelayDiscovery(relayHost);
+        if (!mounted) return;
+        setDiscovered(rels);
+      } catch {
+        // ignore
+      }
+    })();
+    return () => { mounted = false; };
+  }, [relayHost]);
 
   const selectedOption = presetRelays.find((option) => option.url === selectedRelay);
 
@@ -123,6 +145,20 @@ export function RelaySelector(props: RelaySelectorProps) {
               )}
             </CommandEmpty>
             <CommandGroup>
+              {discovered.length > 0 && (
+                <div className="px-3 py-2 border-b">
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs font-semibold">Discovered relays</div>
+                    <Button size="sm" variant="ghost" onClick={async () => {
+                      const host = relayHost;
+                      const rels = await fetchRelayDiscovery(host);
+                      setDiscovered(rels);
+                    }}>
+                      <RefreshCw className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
               {presetRelays
                 .filter((option) => 
                   !inputValue || 
@@ -151,6 +187,17 @@ export function RelaySelector(props: RelaySelectorProps) {
                     </div>
                   </CommandItem>
                 ))}
+              {discovered.map((r) => (
+                <CommandItem key={r.url} value={r.url} className="cursor-default" onSelect={() => {}}>
+                  <div className="flex items-center gap-2 w-full">
+                    <Radio className="h-3 w-3 text-green-500" />
+                    <div className="flex flex-col text-left flex-1">
+                      <span className="font-medium text-sm">{r.url.replace(/^wss?:\/\//, '')}</span>
+                      <span className="text-xs text-muted-foreground">{r.role ?? 'sub-relay'}{r.members_only ? ' · members only' : ''}</span>
+                    </div>
+                  </div>
+                </CommandItem>
+              ))}
               {inputValue && isValidRelayInput(inputValue) && (
                 <CommandItem
                   onSelect={() => handleAddCustomRelay(inputValue)}

@@ -3,6 +3,7 @@ import { useNostr } from '@nostrify/react';
 import { useCallback, useMemo } from 'react';
 
 import { useAuthor } from './useAuthor.ts';
+import { getCurrentEmailUser } from '@/lib/emailAuthService';
 
 export function useCurrentUser() {
   const { nostr } = useNostr();
@@ -40,9 +41,15 @@ export function useCurrentUser() {
   const user = users[0] as NUser | undefined;
   const author = useAuthor(user?.pubkey);
 
+  // Check if current user is an email user
+  const emailUserSession = getCurrentEmailUser();
+  const isEmailUser = emailUserSession && user?.pubkey === emailUserSession.pubkey;
+
   return {
     user,
     users,
+    isEmailUser,
+    emailUserData: isEmailUser ? emailUserSession : null,
     ...author.data,
   };
 }

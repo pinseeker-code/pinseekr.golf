@@ -1,0 +1,22 @@
+{
+  "version": "1.0",
+  "cache_max_age": 600,
+  "relays": [
+    {
+      "url": "wss://relay.pinseekr.golf",
+      "role": "primary",
+      "readable": true,
+      "writable": true,
+      "priority": 1,
+      "description": "Pinseekr Golf Relay (Grain)"
+    },
+    {
+      "url": "wss://relay.nostr.band",
+      "role": "fallback",
+      "readable": true,
+      "writable": true,
+      "priority": 10,
+      "description": "Fallback relay for discovery"
+    }
+  ]
+}

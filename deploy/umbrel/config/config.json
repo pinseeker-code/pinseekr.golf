@@ -1,0 +1,154 @@
+{
+  "mongodb": {
+    "uri": "mongodb://mongodb:27017/",
+    "database": "pinseekr"
+  },
+  "server": {
+    "port": "8080",
+    "read_timeout": 10,
+    "write_timeout": 10,
+    "idle_timeout": 120,
+    "max_connections": 100,
+    "max_subscriptions_per_client": 10
+  },
+  "resource_limits": {
+    "max_event_size": 51200,
+    "max_filter_limit": 500,
+    "max_filters": 10,
+    "max_subscription_filters": 10,
+    "max_subscriptions": 20,
+    "max_limit": 5000,
+    "max_subid_length": 100,
+    "burst_rate": 300,
+    "sustained_rate": 50
+  },
+  "auth": {
+    "enabled": false
+  },
+  "event_purge": {
+    "enabled": false,
+    "keep_interval_hours": 0,
+    "purge_interval_minutes": 0,
+    "purge_by_category": {},
+    "purge_by_kind_enabled": false,
+    "exclude_whitelisted": true
+  },
+  "relay_info": {
+    "name": "Pinseekr Golf Relay",
+    "description": "Nostr relay for Pinseekr golf app - rounds, scores, courses, and player profiles",
+    "pubkey": "",
+    "contact": "admin@pinseekr.golf",
+    "supported_nips": [1, 2, 4, 9, 11, 12, 15, 16, 20, 22, 33, 40],
+    "software": "https://github.com/0ceanSlim/grain",
+    "version": "1.0.0",
+    "icon": "https://pinseekr.golf/icon.png"
+  },
+  "event_time_constraints": {
+    "min_created_at": 0,
+    "min_created_at_string": "",
+    "max_created_at": 0,
+    "max_created_at_string": ""
+  },
+  "category_limits": {
+    "regular": {
+      "max_event_size": 51200,
+      "max_tag_count": 100,
+      "max_tag_value_length": 1024
+    },
+    "replaceable": {
+      "max_event_size": 51200,
+      "max_tag_count": 100,
+      "max_tag_value_length": 1024
+    },
+    "parameterized_replaceable": {
+      "max_event_size": 102400,
+      "max_tag_count": 150,
+      "max_tag_value_length": 2048
+    },
+    "ephemeral": {
+      "max_event_size": 10240,
+      "max_tag_count": 50,
+      "max_tag_value_length": 512
+    }
+  },
+  "pubkey_whitelist": {
+    "enabled": false,
+    "pubkeys": []
+  },
+  "pubkey_blacklist": {
+    "enabled": true,
+    "pubkeys": []
+  },
+  "kind_whitelist": {
+    "enabled": true,
+    "kinds": [
+      0,
+      1,
+      3,
+      4,
+      5,
+      6,
+      7,
+      1111,
+      30005,
+      30007,
+      30010,
+      30011,
+      30100,
+      30382,
+      31924
+    ]
+  },
+  "kind_blacklist": {
+    "enabled": false,
+    "kinds": []
+  },
+  "rate_limit": {
+    "ws_limit": 100,
+    "ws_burst": 200,
+    "event_limit": 50,
+    "event_burst": 100,
+    "req_limit": 50,
+    "req_burst": 100,
+    "category_limits": {
+      "regular": {
+        "limit": 30,
+        "burst": 60
+      },
+      "replaceable": {
+        "limit": 20,
+        "burst": 40
+      },
+      "parameterized_replaceable": {
+        "limit": 20,
+        "burst": 40
+      },
+      "ephemeral": {
+        "limit": 100,
+        "burst": 200
+      }
+    },
+    "kind_limits": {
+      "0": {
+        "limit": 5,
+        "burst": 10
+      },
+      "1": {
+        "limit": 20,
+        "burst": 40
+      },
+      "1111": {
+        "limit": 10,
+        "burst": 20
+      },
+      "30100": {
+        "limit": 5,
+        "burst": 10
+      },
+      "30382": {
+        "limit": 10,
+        "burst": 20
+      }
+    }
+  }
+}

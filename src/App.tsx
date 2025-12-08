@@ -4,7 +4,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createHead, UnheadProvider } from '@unhead/react/client';
 import { InferSeoMetaPlugin } from '@unhead/addons';
-import { Suspense } from 'react';
+import { Suspense, useEffect } from 'react';
 import NostrProvider from '@/components/NostrProvider';
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -13,6 +13,7 @@ import { AppProvider } from '@/components/AppProvider';
 import { NWCProvider } from '@/contexts/NWCContext';
 import { AppConfig } from '@/contexts/AppContext';
 import AppRouter from './AppRouter';
+import { init as initBitcoinConnect, onConnected } from '@getalby/bitcoin-connect-react';
 
 const head = createHead({
   plugins: [
@@ -32,17 +33,28 @@ const queryClient = new QueryClient({
 
 const defaultConfig: AppConfig = {
   theme: "light",
-  relayUrl: "wss://relay.primal.net",
+  relayUrl: "wss://relay.pinseekr.golf",
 };
 
 const presetRelays = [
-  { url: 'wss://ditto.pub/relay', name: 'Ditto' },
-  { url: 'wss://relay.nostr.band', name: 'Nostr.Band' },
-  { url: 'wss://relay.damus.io', name: 'Damus' },
-  { url: 'wss://relay.primal.net', name: 'Primal' },
+  { url: 'wss://relay.pinseekr.golf', name: 'Pinseekr' },
+  { url: 'wss://relay.nostr.band', name: 'Nostr.Band (Fallback)' },
 ];
 
+// Initialize Bitcoin Connect
+initBitcoinConnect({
+  appName: 'Pinseekr Golf',
+  showBalance: true,
+});
+
 export function App() {
+  // Set up WebLN global when Bitcoin Connect connects
+  useEffect(() => {
+    const unsubscribe = onConnected((provider) => {
+      window.webln = provider;
+    });
+    return unsubscribe;
+  }, []);
   return (
     <UnheadProvider head={head}>
       <AppProvider storageKey="nostr:app-config" defaultConfig={defaultConfig} presetRelays={presetRelays}>

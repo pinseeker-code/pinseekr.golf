@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { LoginArea } from '@/components/auth/LoginArea';
+import { OutboxPanel } from '@/components/OutboxPanel';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -27,7 +28,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, showHeader = true }) =
             </div>
             <div className="flex items-center space-x-4">
               <ThemeToggle />
-              <LoginArea className="max-w-60" />
+              <OutboxPanel />
+              <LoginArea className="max-w-60" useEnhancedLogin={true} />
             </div>
           </div>
         </header>

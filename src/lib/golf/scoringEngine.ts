@@ -1,4 +1,5 @@
 import { GameMode, GameConfig, PlayerInRound, HoleScore } from './types';
+import { sixesEngine } from './sixesEngine';
 
 // Payment and settlement interfaces
 export interface Payable {
@@ -111,6 +112,9 @@ export class ScoringEngine {
       case GameMode.POINTS:
         return this.calculatePointsResults(players);
 
+      case GameMode.SIXES:
+        return this.calculateSixesResults(players);
+
       default:
         return players.sort((a, b) => a.total - b.total);
     }
@@ -146,8 +150,85 @@ export class ScoringEngine {
    * Calculate points game results
    */
   private calculatePointsResults(players: PlayerInRound[]): PlayerInRound[] {
-    // Points system: lower scores get more points
-    return players.sort((a, b) => a.total - b.total);
+    // Stableford / Points scoring: compute points per hole based on score vs par
+    const useModified = !!this.gameConfig.settings?.modifiedStableford;
+
+    // Points mapping by score relative to par (strokes - par)
+    // Standard Stableford (commonly used):
+    // Albatross (3 under par): 5, Eagle (2 under): 4, Birdie:3, Par:2, Bogey:1, Double bogey or worse:0
+    const standardMap: Record<number, number> = {
+      [-3]: 5,
+      [-2]: 4,
+      [-1]: 3,
+      [0]: 2,
+      [1]: 1,
+    };
+
+    // Modified Stableford (aggressive scoring with penalties):
+    // Albatross: +8, Eagle: +5, Birdie: +2, Par: 0, Bogey: -1, Double bogey or worse: -3
+    const modifiedMap: Record<number, number> = {
+      [-3]: 8,
+      [-2]: 5,
+      [-1]: 2,
+      [0]: 0,
+      [1]: -1,
+    };
+
+    // Helper to map relative score to points
+    const mapPoints = (rel: number) => {
+      const m = useModified ? modifiedMap : standardMap;
+      if (rel <= -3) return m[-3];
+      if (rel >= 2) return useModified ? -3 : 0; // double bogey or worse
+      return m[rel] ?? 0;
+    };
+
+    // Compute total points per player using their hole-by-hole scores if available
+    const playerPoints: { [id: string]: number } = {};
+    for (const p of players) {
+      let pts = 0;
+      // We expect p.scores aligns with round holes; if missing, skip
+      if (!p.scores || p.scores.length === 0) {
+        playerPoints[p.playerId] = 0;
+        continue;
+      }
+      for (let i = 0; i < p.scores.length; i++) {
+        // If hole par information isn't available here, assume par 4
+        // Higher-level callers that have hole par info can compute a more accurate table
+        const par = 4; // default fallback
+        const strokes = p.scores[i] || 0;
+        const rel = strokes - par;
+
+        let holePoints = mapPoints(rel);
+        // For modified variant apply harsher penalty for 2+ over par
+        if (useModified && rel >= 2) holePoints = -3;
+        pts += holePoints;
+      }
+      playerPoints[p.playerId] = pts;
+    }
+
+    // Attach computed points to player.total temporarily (not mutating original object deeply)
+    const ranked = [...players].sort((a, b) => (playerPoints[b.playerId] || 0) - (playerPoints[a.playerId] || 0));
+    return ranked;
+  }
+
+  /**
+   * Calculate Sixes game results
+   */
+  private calculateSixesResults(players: PlayerInRound[]): PlayerInRound[] {
+    try {
+      const result = sixesEngine(players);
+
+      // Sort players by their Sixes points (highest first)
+      return [...players].sort((a, b) => {
+        const aPoints = result.playerTotals[a.playerId] || 0;
+        const bPoints = result.playerTotals[b.playerId] || 0;
+        return bPoints - aPoints;
+      });
+    } catch (error) {
+      // If Sixes calculation fails, fall back to stroke play
+      console.warn('Sixes calculation failed, falling back to stroke play:', error);
+      return players.sort((a, b) => a.total - b.total);
+    }
   }
 
   /**
@@ -232,11 +313,10 @@ export class ScoringEngine {
       [GameMode.NASSAU]: 'Nassau',
       [GameMode.MATCH_PLAY]: 'Match Play',
       [GameMode.WOLF]: 'Wolf',
-      [GameMode.POINTS]: 'Points',
+      [GameMode.POINTS]: 'Stableford',
       [GameMode.VEGAS]: 'Vegas',
       [GameMode.SIXES]: 'Sixes',
       [GameMode.DOTS]: 'Dots',
-      [GameMode.ROLLING_STROKES]: 'Rolling Strokes',
       [GameMode.SNAKE]: 'Snake'
     };
 

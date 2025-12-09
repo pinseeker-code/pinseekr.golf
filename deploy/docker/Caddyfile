@@ -1,7 +1,7 @@
-# Caddyfile for pinseekr.golf production deployment
-# Serves React PWA with automatic HTTPS
+# Caddyfile for pinseekr.golf - Cloudflare Tunnel deployment
+# Serves React PWA on HTTP (Cloudflare handles TLS)
 
-pinseekr.golf {
+:80 {
     # Serve React app from /srv
     root * /srv
     
@@ -37,9 +37,6 @@ pinseekr.golf {
         
         # Service Worker support
         Service-Worker-Allowed "/"
-        
-        # HTTPS enforcement
-        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
     }
     
     # Compress responses
@@ -52,9 +49,4 @@ pinseekr.golf {
     file_server {
         precompressed gzip
     }
-}
-
-# Redirect www to non-www
-www.pinseekr.golf {
-    redir https://pinseekr.golf{uri} permanent
 }

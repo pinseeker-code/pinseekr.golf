@@ -64,6 +64,24 @@ git pull origin main
 ./deploy/docker/build-and-deploy.sh
 ```
 
+## `stack.env` (Portainer Repository deployment requirement)
+
+When deploying a stack from the **Repository** option in Portainer, Portainer requires a `stack.env` file to already exist in the Git repository at the compose path. The `deploy/docker/stack.env` file in this repo provides the environment variables Portainer will load into the stack.
+
+Example contents (already present in `deploy/docker/stack.env`):
+
+```
+# Required: agree to Caddy's terms to enable automatic ACME certificate issuance
+CADDY_AGREE=true
+
+# Optional: email used by ACME providers for account registration and recovery
+#ACME_EMAIL=admin@pinseekr.golf
+```
+
+If you deploy via Portainer's Web editor, Upload, or a Custom template, Portainer will auto-create a `stack.env` from the variables you set during the stack creation instead.
+
+Keep `stack.env` in the repository when using the Repository deployment method so Portainer can read these variables at deploy time.
+
 ## What the Script Does
 
 1. **Builds** your React app (`npm run build`)

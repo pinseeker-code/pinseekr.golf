@@ -1,6 +1,6 @@
-# Docker Deployment - Production PWA
+# Docker Deployment - Portainer Stack for Umbrel
 
-Simple Docker container deployment for pinseekr.golf production hosting.
+Portainer stack deployment for pinseekr.golf on Umbrel devices.
 
 ## What This Creates
 
@@ -8,26 +8,38 @@ Simple Docker container deployment for pinseekr.golf production hosting.
 - **Automatic HTTPS** with Let's Encrypt certificates for pinseekr.golf
 - **PWA optimized** with proper caching, service worker support, and mobile install
 - **Production ready** with security headers and compression
+- **Persistent volumes** for Caddy data and configuration
+- **Health checks** for container monitoring
 
-## Quick Deployment
+## Prerequisites
 
-### Prerequisites
 1. **DNS**: Point `pinseekr.golf` A record to your Umbrel's public IP
 2. **Ports**: Forward 80 and 443 from router to Umbrel
-3. **Docker**: Already installed on Umbrel
+3. **Portainer**: Installed on Umbrel (recommended by Umbrel)
 
-### Deploy
+## Portainer Stack Deployment
+
+### Step 1: Install Portainer on Umbrel
+If not already installed, install Portainer from the Umbrel App Store.
+
+### Step 2: Clone Repository on Umbrel
 ```bash
-# On your Umbrel device (SSH or terminal)
+# SSH to your Umbrel or use the terminal
 git clone https://github.com/pinseeker-code/pinseekr.golf.git
 cd pinseekr.golf
-
-# Make script executable and deploy
-chmod +x deploy/docker/build-and-deploy.sh
-./deploy/docker/build-and-deploy.sh
 ```
 
-## Development Workflow
+### Step 3: Deploy via Portainer
+1. Open Portainer in your browser (usually at http://umbrel.local:9000)
+2. Go to **Stacks** → **Add Stack**
+3. Name: `pinseekr-golf`
+4. **Upload** or **Repository** method:
+   - **Repository**: Use `https://github.com/pinseeker-code/pinseekr.golf.git`
+   - **Compose path**: `deploy/docker/docker-compose.yml`
+   - Or **Upload**: Copy the `docker-compose.yml` content
+5. Click **Deploy the stack**
+
+## Development Workflow (Recommended for Umbrel)
 
 ### On Windows (Development)
 ```bash
@@ -38,7 +50,14 @@ git commit -m "Update feature"
 git push origin main
 ```
 
-### On Umbrel (Production)
+### On Umbrel (via Portainer)
+1. In Portainer, go to your `pinseekr-golf` stack
+2. Click **Editor** → **Update the stack** → **Pull and redeploy**
+3. This will pull latest code and rebuild the container
+
+## Alternative: Manual Deployment
+
+If you prefer command line (requires SSH access):
 ```bash
 # Update and redeploy
 git pull origin main

@@ -13,8 +13,7 @@ services:
     volumes:
       - caddy_data:/data
       - caddy_config:/config
-    networks:
-      - pinseekr-network
+    network_mode: bridge
     environment:
       - CADDY_AGREE=${CADDY_AGREE}
       - ACME_EMAIL=${ACME_EMAIL}
@@ -30,7 +29,3 @@ volumes:
     driver: local
   caddy_config:
     driver: local
-
-networks:
-  pinseekr-network:
-    driver: bridge

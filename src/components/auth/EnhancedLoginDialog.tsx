@@ -781,6 +781,15 @@ export const EnhancedLoginDialog: React.FC<EnhancedLoginDialogProps> = ({
                     {emailForm.isSignup ? 'Already have an account? Log in' : 'Need an account? Sign up'}
                   </Button>
                 </div>
+                {/* Informational note about local storage vs Nostr */}
+                <div className="text-xs text-muted-foreground mt-2 space-y-1">
+                  <p>
+                    Note: email/password accounts are stored only on this device. To access your account from other devices, sign in using Nostr (recommended).
+                  </p>
+                  <p>
+                    Learn more about Nostr: <a href="https://njump.me/" target="_blank" rel="noopener noreferrer" className="underline">https://njump.me/</a>
+                  </p>
+                </div>
               </div>
             </div>
           )}

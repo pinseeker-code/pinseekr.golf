@@ -17,6 +17,12 @@
       "writable": true,
       "priority": 10,
       "description": "Fallback relay for discovery"
+    },
+    {
+      "name": "Local Grain (Umbrel)",
+      "url": "ws://100.94.28.97:8181",
+      "read": true,
+      "write": true
     }
   ]
 }

@@ -3,12 +3,12 @@
   "cache_max_age": 600,
   "relays": [
     {
-      "url": "wss://relay.nostr.band",
+      "url": "wss://relay.pinseekr.golf",
       "role": "primary",
       "readable": true,
       "writable": true,
       "priority": 1,
-      "description": "Primary relay for discovery"
+      "description": "Pinseekr Golf Relay (Grain)"
     },
     {
       "name": "Local Grain (Umbrel)",

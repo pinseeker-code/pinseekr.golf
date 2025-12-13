@@ -2,7 +2,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { useNostr } from '@nostrify/react';
 import { useCurrentUser } from './useCurrentUser';
 import { useNostrPublish } from './useNostrPublish';
-import { GOLF_KINDS, OLD_GOLF_KINDS } from '@/lib/golf/types';
+import { GOLF_KINDS } from '@/lib/golf/types';
 import type { NostrEvent, NostrFilter } from '@nostrify/nostrify';
 
 type PlayerScorePayload = {
@@ -30,7 +30,7 @@ export function usePlayerScores(roundId: string, playerPubkey?: string) {
       const signal = AbortSignal.any([ctx.signal, AbortSignal.timeout(5000)]);
 
       const filter = {
-        kinds: [GOLF_KINDS.PLAYER_SCORE, OLD_GOLF_KINDS.PLAYER_SCORE],
+        kinds: [GOLF_KINDS.PLAYER_SCORE],
         '#d': [roundId],
         limit: 200,
       } as unknown as NostrFilter;

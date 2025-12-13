@@ -1,5 +1,5 @@
 import { useNostr } from '@nostrify/react';
-import { GOLF_KINDS, OLD_GOLF_KINDS } from '@/lib/golf/types';
+import { GOLF_KINDS } from '@/lib/golf/types';
 import { useQuery } from '@tanstack/react-query';
 import type { NostrEvent, NostrFilter } from '@nostrify/nostrify';
 import { type GolfCourse } from './useGolfCourses';
@@ -22,7 +22,7 @@ export function useDiscoverCourses(filters: CourseSearchFilters = {}) {
       
       // Build filter for course discovery
       const searchFilters: NostrFilter[] = [{
-        kinds: [GOLF_KINDS.COURSE, OLD_GOLF_KINDS.COURSE], // accept new and legacy course kinds
+        kinds: [GOLF_KINDS.COURSE], // Golf course kind
         '#t': ['golf-course'], // Ensure we only get golf courses
         limit: filters.limit || 50,
       }];
@@ -85,7 +85,7 @@ export function useDiscoverCourses(filters: CourseSearchFilters = {}) {
 
 function validateCourseEvent(event: NostrEvent): boolean {
   // Check if it's a golf course event
-  if (event.kind !== GOLF_KINDS.COURSE && event.kind !== OLD_GOLF_KINDS.COURSE) return false;
+  if (event.kind !== GOLF_KINDS.COURSE) return false;
 
   // Check for required tags
   const dTag = event.tags.find(([name]) => name === 'd')?.[1];

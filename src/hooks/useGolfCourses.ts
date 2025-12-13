@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNostr } from '@nostrify/react';
-import { GOLF_KINDS, OLD_GOLF_KINDS } from '@/lib/golf/types';
+import { GOLF_KINDS } from '@/lib/golf/types';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNostrPublish } from '@/hooks/useNostrPublish';
 
@@ -32,7 +32,7 @@ export function useGolfCourses() {
       const signal = AbortSignal.any([c.signal, AbortSignal.timeout(5000)]);
       const events = await nostr.query([
         {
-          kinds: [GOLF_KINDS.COURSE, OLD_GOLF_KINDS.COURSE], // accept new and legacy course kinds
+          kinds: [GOLF_KINDS.COURSE], // Course event kind
           '#t': ['golf-course'],
           limit: 500,
         }

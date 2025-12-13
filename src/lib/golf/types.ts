@@ -35,19 +35,6 @@ export const GOLF_KINDS = {
   INVITE_ACCEPT: 36910,  // player invite accept proof
 } as const;
 
-// Backwards-compatibility map for previously used numeric kinds
-export const OLD_GOLF_KINDS = {
-  ROUND: 30001,
-  HOLE: 30002,
-  PLAYER: 30003,
-  GAME: 30004,
-  RESULT: 30005,
-  BADGE_AWARD: 30006,
-  TOURNAMENT: 30007,
-  COURSE: 30100,
-  PLAYER_SCORE: 30010,
-} as const;
-
 // Player in a round
 export interface PlayerInRound {
   playerId: string;

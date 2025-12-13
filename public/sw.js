@@ -1,5 +1,6 @@
 /* Minimal service worker: caches shell and attempts background sync when available */
-const CACHE_NAME = 'pinseekr-shell-v1';
+const CACHE_VERSION = '2025-12-12-v2'; // Update this on each deploy
+const CACHE_NAME = `pinseekr-shell-${CACHE_VERSION}`;
 const ASSETS = [
   '/',
   '/index.html',
@@ -12,7 +13,16 @@ self.addEventListener('install', (e) => {
 });
 
 self.addEventListener('activate', (e) => {
-  e.waitUntil(self.clients.claim());
+  // Delete old caches to prevent stale HTML from referencing removed assets
+  e.waitUntil(
+    caches.keys().then((cacheNames) => {
+      return Promise.all(
+        cacheNames
+          .filter((name) => name.startsWith('pinseekr-shell-') && name !== CACHE_NAME)
+          .map((name) => caches.delete(name))
+      );
+    }).then(() => self.clients.claim())
+  );
 });
 
 self.addEventListener('fetch', (e) => {

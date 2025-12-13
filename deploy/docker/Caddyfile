@@ -5,17 +5,27 @@
     # Serve React app from /srv
     root * /srv
     
-    # SPA routing - fallback to index.html for client-side routes
+    # Serve asset requests directly and return 404 when missing
+    @asset {
+        path /assets/* *.js *.css *.png *.jpg *.jpeg *.gif *.ico *.svg *.woff *.woff2 *.ttf *.eot *.json *.webmanifest /favicon-*.png /apple-touch-icon.png
+    }
+    handle @asset {
+        try_files {path}
+        header {
+            Cache-Control "max-age=31536000, immutable"
+            Vary "Accept-Encoding"
+            Access-Control-Allow-Origin "*"
+        }
+        file_server {
+            precompressed gzip
+        }
+    }
+
+    # SPA routing - fallback to index.html for client-side routes (non-asset requests)
+    @spa {
+        not path /assets/* *.js *.css *.png *.jpg *.jpeg *.gif *.ico *.svg *.woff *.woff2 *.ttf *.eot *.json *.webmanifest /favicon-*.png /apple-touch-icon.png
+    }
     try_files {path} /index.html
-    
-    # Cache static assets aggressively
-    @static {
-        path *.js *.css *.png *.jpg *.jpeg *.gif *.ico *.svg *.woff *.woff2 *.ttf *.eot *.json *.webmanifest
-    }
-    header @static {
-        Cache-Control "max-age=31536000, immutable"
-        Vary "Accept-Encoding"
-    }
     
     # Don't cache HTML files (for PWA updates)
     @html {

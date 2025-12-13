@@ -54,22 +54,27 @@ Pinseekr.golf is a comprehensive golf scoring application with Lightning Network
 We'll create custom Nostr event kinds for golf scoring:
 
 ```typescript
-// Golf Scoring Event Kind: 30000-39999 (Addressable)
+// Golf Scoring Event Kind: 36901-36910 (Project reserved block)
 export const GOLF_EVENT_KINDS = {
-  ROUND: 30001,        // Golf round metadata
-  HOLE: 30002,        // Individual hole scores
-  PLAYER: 30003,      // Player profile in round
-  GAME: 30004,        // Game mode configuration
-  RESULT: 30005,      // Final round results
+  ROUND: 36901,        // Golf round metadata
+  HOLE: 36902,         // Individual hole scores
+  PLAYER: 36903,       // Player profile in round
+  GAME: 36904,         // Game mode configuration
+  RESULT: 36905,       // Final round results
+  BADGE_AWARD: 36906,  // Badge achievement awards
+  TOURNAMENT: 36907,   // Tournament events
+  COURSE: 36908,       // Golf course metadata
+  PLAYER_SCORE: 36909, // Individual player score (alternate)
+  INVITE_ACCEPT: 36910 // Invite/accept events
 } as const;
 ```
 
 #### 2.1.2 Event Structure Examples
 
-**Round Event (Kind 30001):**
+**Round Event (Kind 36901):**
 ```json
 {
-  "kind": 30001,
+  "kind": 36901,
   "pubkey": "player_pubkey",
   "created_at": 1640995200,
   "tags": [
@@ -86,10 +91,10 @@ export const GOLF_EVENT_KINDS = {
 }
 ```
 
-**Hole Score Event (Kind 30002):**
+**Hole Score Event (Kind 36902):**
 ```json
 {
-  "kind": 30002,
+  "kind": 36902,
   "pubkey": "player_pubkey",
   "created_at": 1640995260,
   "tags": [
@@ -262,7 +267,7 @@ We'll use NIP-58 Badge events with custom extensions:
   "pubkey": "issuer_pubkey",
   "created_at": 1640995200,
   "tags": [
-    ["a", "30009:golf:hole-in-one:1"],
+    ["a", "36906:golf:hole-in-one:1"],
     ["d", "hole-in-one-1"],
     ["t", "golf"],
     ["t", "achievement"],
@@ -398,7 +403,7 @@ class SocialService {
       tags: [
         ['e', rootEvent.id],
         ['p', rootEvent.pubkey],
-        ['a', `30001:${rootEvent.tags.find(t => t[0] === 'd')?.[1]}`]
+        ['a', `36901:${rootEvent.tags.find(t => t[0] === 'd')?.[1]}`]
       ]
     });
   }
@@ -619,16 +624,18 @@ src/
 ### 5.1 Nostr Event Kinds
 
 ```typescript
-// Custom event kinds for golf
+// Custom event kinds for golf (project reserved 36901-36910)
 export const GOLF_KINDS = {
-  ROUND: 30001,           // Golf round metadata
-  HOLE: 30002,            // Individual hole scores
-  PLAYER: 30003,          // Player profile in round
-  GAME: 30004,           // Game mode configuration
-  RESULT: 30005,         // Final round results
-  BADGE_AWARD: 30006,    // Badge achievement awards
-  TOURNAMENT: 30007,     // Tournament events
-  COURSE: 30008,         // Golf course metadata
+  ROUND: 36901,           // Golf round metadata
+  HOLE: 36902,            // Individual hole scores
+  PLAYER: 36903,          // Player profile in round
+  GAME: 36904,            // Game mode configuration
+  RESULT: 36905,          // Final round results
+  BADGE_AWARD: 36906,     // Badge achievement awards
+  TOURNAMENT: 36907,      // Tournament events
+  COURSE: 36908,          // Golf course metadata
+  PLAYER_SCORE: 36909,    // Individual player score event
+  INVITE_ACCEPT: 36910,   // Invite/accept events
 } as const;
 ```
 

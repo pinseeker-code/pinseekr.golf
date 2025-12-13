@@ -852,7 +852,7 @@ export const NewRoundPage: React.FC = () => {
 
         // Publish tournament event with wagers and invoice placeholders
         const tournamentEvent = {
-          kind: 30007, // GOLF_KINDS.TOURNAMENT
+          kind: GOLF_KINDS.TOURNAMENT,
           created_at: Math.floor(Date.now() / 1000),
           tags: [
             ['d', `${round.id}-tournament`],
@@ -1090,7 +1090,7 @@ export const NewRoundPage: React.FC = () => {
       // Publish settlement event with payments and invoices (some may be placeholders)
       try {
         const settlementEvent: Omit<NostrEvent, 'id' | 'pubkey' | 'sig'> = {
-          kind: 30005,
+          kind: GOLF_KINDS.RESULT,
           created_at: Math.floor(Date.now() / 1000),
           tags: [
             ['d', `${round.id}-result`],

@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNostr } from '@nostrify/react';
-import { GOLF_KINDS } from '@/lib/golf/types';
+import { GOLF_KINDS, OLD_GOLF_KINDS } from '@/lib/golf/types';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNostrPublish } from '@/hooks/useNostrPublish';
 
@@ -32,7 +32,7 @@ export function useGolfCourses() {
       const signal = AbortSignal.any([c.signal, AbortSignal.timeout(5000)]);
       const events = await nostr.query([
         {
-          kinds: [GOLF_KINDS.COURSE], // Course event kind
+          kinds: [GOLF_KINDS.COURSE, OLD_GOLF_KINDS.COURSE], // accept new and legacy course kinds
           '#t': ['golf-course'],
           limit: 500,
         }
@@ -42,21 +42,41 @@ export function useGolfCourses() {
         // Try to parse JSON content first (preferred)
         try {
           if (event.content && event.content.trim().startsWith('{')) {
-            const parsed = JSON.parse(event.content);
+            const parsedRaw = JSON.parse(event.content) as unknown;
+            const parsed = parsedRaw as {
+              id?: string;
+              name?: string;
+              title?: string;
+              courseName?: string;
+              location?: string;
+              courseLocation?: string;
+              holes?: Record<string, number>;
+              sections?: Record<string, string>;
+              tees?: { name: string; yardage: number }[];
+              yardages?: Record<string, number>;
+              totalPar?: number;
+              createdAt?: number;
+            };
+
+            const parsedHoles = parsed.holes || {};
+            const computedTotalPar = typeof parsed.totalPar === 'number'
+              ? parsed.totalPar
+              : Object.values(parsedHoles).map(v => Number(v) || 0).reduce((s, n) => s + n, 0);
+
             return {
-              id: (parsed.id as string) || event.tags.find(t => t[0] === 'd')?.[1] || event.id,
-              name: (parsed.name as string) || (parsed.title as string) || parsed.courseName || 'Unknown Course',
-              location: (parsed.location as string) || parsed.courseLocation || '',
+              id: parsed.id || event.tags.find(t => t[0] === 'd')?.[1] || event.id,
+              name: parsed.name || parsed.title || parsed.courseName || 'Unknown Course',
+              location: parsed.location || parsed.courseLocation || '',
               holes: parsed.holes || {},
               sections: parsed.sections || undefined,
               tees: parsed.tees || undefined,
               yardages: parsed.yardages || undefined,
-              totalPar: typeof parsed.totalPar === 'number' ? parsed.totalPar : Object.values(parsed.holes || {}).reduce((s:any, n:any) => s + (Number(n) || 0), 0),
+              totalPar: computedTotalPar,
               author: event.pubkey,
               createdAt: (parsed.createdAt && typeof parsed.createdAt === 'number') ? parsed.createdAt : event.created_at * 1000,
             } as GolfCourse;
           }
-        } catch (e) {
+        } catch {
           // Fall back to tag parsing below if JSON parse fails
         }
 
@@ -183,12 +203,12 @@ export function useAddGolfCourse() {
         }
       }
 
-      const payload = {
+        const payload = {
         id: courseId,
         name: course.name,
         location: course.location,
         holes: course.holes,
-        yardages: (course as any).yardages || undefined,
+        yardages: (course as unknown as { yardages?: { [hole: number]: number } }).yardages || undefined,
         sections: course.sections || undefined,
         tees: course.tees || undefined,
         totalPar: Object.values(course.holes).reduce((s, n) => s + (Number(n) || 0), 0),

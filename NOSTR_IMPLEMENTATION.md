@@ -33,11 +33,11 @@ This document provides a high-level overview of how the Pinseekr golf app uses t
 
 | Kind | Name | Description | Hook/File |
 |------|------|-------------|-----------|
-| **30005** | Settlement Result | Round settlement with payment info and invoices | `NewRoundPage.tsx` |
-| **30007** | Tournament | Tournament/wager events for Pinseekr Cup | `NewRoundPage.tsx` |
-| **30010** | Player Score | Per-player score updates for a round (addressable by `d` tag) | Defined in `NIP.md` |
-| **30011** | Invite Accept | Signed proof that a player accepted a round invite | Defined in `NIP.md` |
-| **30100** | Golf Course | Golf course data (name, location, hole pars) | `useGolfCourses.ts`, `useDiscoverCourses.ts` |
+| **36905** | Settlement Result | Round settlement with payment info and invoices | `NewRoundPage.tsx` |
+| **36907** | Tournament | Tournament/wager events for Pinseekr Cup | `NewRoundPage.tsx` |
+| **36909** | Player Score | Per-player score updates for a round (addressable by `d` tag) | Defined in `NIP.md` |
+| **36910** | Invite Accept | Signed proof that a player accepted a round invite | Defined in `NIP.md` |
+| **36908** | Golf Course | Golf course data (name, location, hole pars) | `useGolfCourses.ts`, `useDiscoverCourses.ts` |
 | **30382** | Golf Profile | Player golf profile (stats, handicap, badges, achievements) | `useGolfProfile.ts`, `social.ts` |
 | **31924** | Golf Round | Complete round event (scores, participants, course data) | `social.ts` |
 
@@ -101,13 +101,13 @@ Threaded comments that can be attached to any event or URL.
 
 ---
 
-### Kind 30005: Settlement Result
+### Kind 36905: Settlement Result
 Published after a round to record payment settlements.
 
 **Structure:**
 ```json
 {
-  "kind": 30005,
+  "kind": 36905,
   "tags": [
     ["d", "<roundId>-result"],
     ["t", "golf"],
@@ -122,13 +122,13 @@ Published after a round to record payment settlements.
 
 ---
 
-### Kind 30007: Tournament
+### Kind 36907: Tournament
 Tournament configuration and wager information for Pinseekr Cup games.
 
 **Structure:**
 ```json
 {
-  "kind": 30007,
+  "kind": 36907,
   "tags": [
     ["d", "<roundId>-tournament"],
     ["t", "golf"],
@@ -181,13 +181,13 @@ Signed proof that a player accepted an invite to join a round.
 
 ---
 
-### Kind 30100: Golf Course
+### Kind 36908: Golf Course
 Golf course database entries with hole-by-hole par information.
 
 **Structure:**
 ```json
 {
-  "kind": 30100,
+  "kind": 36908,
   "tags": [
     ["d", "<course-slug>"],
     ["name", "Pebble Beach Golf Links"],
@@ -321,11 +321,11 @@ The relay only accepts these event kinds:
 - `6` - Repost
 - `7` - Reaction
 - `1111` - NIP-22 comments
-- `30005` - Settlement
-- `30007` - Tournament
-- `30010` - Player score
-- `30011` - Invite accept
-- `30100` - Golf course
+- `36905` - Settlement
+- `36907` - Tournament
+- `36909` - Player score
+- `36910` - Invite accept
+- `36908` - Golf course
 - `30382` - Golf profile
 - `31924` - Golf round
 

@@ -22,17 +22,30 @@ export enum BadgeCategory {
 
 // Custom Nostr Event Kinds for Golf
 export const GOLF_KINDS = {
-  ROUND: 30001,           // Golf round metadata
-  HOLE: 30002,            // Individual hole scores
-  PLAYER: 30003,          // Player profile in round
-  GAME: 30004,           // Game mode configuration
-  RESULT: 30005,         // Final round results
-  BADGE_AWARD: 30006,    // Badge achievement awards
-  TOURNAMENT: 30007,     // Tournament events
-  COURSE: 30008,         // Golf course metadata
+  ROUND: 36901,           // Golf round metadata
+  HOLE: 36902,            // Individual hole scores
+  PLAYER: 36903,          // Player profile in round
+  GAME: 36904,           // Game mode configuration
+  RESULT: 36905,         // Final round results
+  BADGE_AWARD: 36906,    // Badge achievement awards
+  TOURNAMENT: 36907,     // Tournament events
+  COURSE: 36908,         // Golf course metadata
   // Additional project kinds
-  PLAYER_SCORE: 30010,   // per-player score updates (addressable)
-  INVITE_ACCEPT: 30011,  // player invite accept proof
+  PLAYER_SCORE: 36909,   // per-player score updates (addressable)
+  INVITE_ACCEPT: 36910,  // player invite accept proof
+} as const;
+
+// Backwards-compatibility map for previously used numeric kinds
+export const OLD_GOLF_KINDS = {
+  ROUND: 30001,
+  HOLE: 30002,
+  PLAYER: 30003,
+  GAME: 30004,
+  RESULT: 30005,
+  BADGE_AWARD: 30006,
+  TOURNAMENT: 30007,
+  COURSE: 30100,
+  PLAYER_SCORE: 30010,
 } as const;
 
 // Player in a round

@@ -4,13 +4,14 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { db, OutboxEvent } from '@/lib/offline/db';
 import { useOfflineRound } from '@/hooks/useOfflineRound';
+import { GOLF_KINDS } from '@/lib/golf/types';
 
 // Map kind numbers to friendly names
 const kindLabels: Record<number, string> = {
   1: 'Note',
-  30010: 'Score Update',
-  30005: 'Round',
-  30007: 'Round State',
+  [GOLF_KINDS.PLAYER_SCORE]: 'Score Update',
+  [GOLF_KINDS.RESULT]: 'Round',
+  [GOLF_KINDS.TOURNAMENT]: 'Round State',
 };
 
 const statusColors: Record<string, string> = {

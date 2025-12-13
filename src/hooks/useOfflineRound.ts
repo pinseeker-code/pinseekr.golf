@@ -3,6 +3,7 @@ import { db, HoleScore } from '@/lib/offline/db';
 import { useNostr } from '@nostrify/react';
 import { useCurrentUser } from './useCurrentUser';
 import { enqueueOutboxEvent, publishOutboxOnce } from '@/lib/sync/outbox';
+import { GOLF_KINDS } from '@/lib/golf/types';
 import { v4 as uuidv4 } from 'uuid';
 
 export function useOfflineRound() {
@@ -72,15 +73,15 @@ export function useOfflineRound() {
     const score: HoleScore = { roundId, playerPubkey, hole, strokes, timestamp, deviceId };
     await db.holeScores.add(score);
 
-    // Create an outbox event - using kind 30010 as player score
+    // Create an outbox event - using GOLF_KINDS.PLAYER_SCORE as player score
     const eventId = uuidv4();
     const payload = {
-      kind: 30010,
+      kind: GOLF_KINDS.PLAYER_SCORE,
       content: JSON.stringify({ roundId, playerPubkey, hole, strokes, timestamp, deviceId }),
       tags: [['d', roundId], ['player', playerPubkey]]
     };
 
-    await enqueueOutboxEvent({ eventId, kind: 30010, payload });
+    await enqueueOutboxEvent({ eventId, kind: GOLF_KINDS.PLAYER_SCORE, payload });
   };
 
   const getScoresForRound = async (roundId: string) => {

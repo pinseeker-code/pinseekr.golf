@@ -172,7 +172,7 @@ export interface TeeTimeSlot {
 
 // Nostr Event Kinds for Course Database
 export const COURSE_KINDS = {
-  COURSE: 30100,        // Golf course information
+  COURSE: 36908,        // Golf course information (migrated to 369xx block)
   COURSE_REVIEW: 30101, // Course reviews
   TEE_TIME: 30102,      // Tee time availability
   COURSE_UPDATE: 30103, // Course condition updates

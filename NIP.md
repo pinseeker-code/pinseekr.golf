@@ -6,7 +6,7 @@ This NIP defines a protocol for storing and sharing golf course information on t
 
 ## Golf Course Events
 
-Golf courses are represented as addressable events with `kind 30100` and tagged with `t: "golf-course"`.
+Golf courses are represented as addressable events with `kind 36908` and tagged with `t: "golf-course"`.
 ````markdown
 # NIP-XX: Golf Course Database
 
@@ -22,7 +22,7 @@ Golf courses are represented as addressable events with `kind 30100` and tagged 
 
 ```json
 {
-  "kind": 30100,
+  "kind": 36908,
   "content": "<course_name> - <course_location>",
   "tags": [
     ["d", "<unique_course_identifier>"],
@@ -55,7 +55,7 @@ The content field should contain a brief description combining the course name a
 
 ```json
 {
-  "kind": 30100,
+  "kind": 36908,
   "content": "Pebble Beach Golf Links - Pebble Beach, CA",
   "tags": [
     ["d", "pebble-beach-golf-links-1640995200"],
@@ -92,7 +92,7 @@ Clients can query golf courses using:
 ```javascript
 // Get all golf courses
 await nostr.query([{
-  kinds: [30100],
+  kinds: [36908],
   "#t": ["golf-course"]
 }]);
 
@@ -119,7 +119,7 @@ This approach leverages Nostr's decentralized architecture to create a community
 
 ## Project-specific kinds added
 
-- `30010` - `player-score` (addressable)
+ - `36909` - `player-score` (addressable)
   - Purpose: per-player score updates for a specific round. Addressable so relays keep the latest per pubkey+kind+`d`.
   - Tags:
     - `['d', '<roundId>']`  // addressable identifier for the round
@@ -133,7 +133,7 @@ This approach leverages Nostr's decentralized architecture to create a community
     }
     ```
 
-- `30011` - `invite-accept`
+ - `36910` - `invite-accept`
   - Purpose: signed proof that a player accepted an invite to a round.
   - Tags:
     - `['d', '<roundId>']`
@@ -156,4 +156,4 @@ Invite payload example (encrypted):
 }
 ```
 
-Recipient should accept by publishing a signed `30011` accept event tagged with `['d', roundId]` and `['action', 'join']`. The host will treat that as verification.
+Recipient should accept by publishing a signed `36910` accept event tagged with `['d', roundId]` and `['action', 'join']`. The host will treat that as verification.

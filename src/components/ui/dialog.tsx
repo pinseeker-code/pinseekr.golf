@@ -39,12 +39,12 @@ const DialogContent = React.forwardRef<
     if (React.isValidElement(child) && child.type === DialogPrimitive.Description) {
       const id = child.props.id || `dialog-desc-${Math.random().toString(36).slice(2, 9)}`
       descriptionId = id
-      return React.cloneElement(child, { id })
+      return React.cloneElement(child as React.ReactElement, { id })
     }
     return child
   })
 
-  const contentProps = { ...props } as Record<string, any>
+  const contentProps = { ...props } as React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
   if (!contentProps["aria-describedby"] && descriptionId) {
     contentProps["aria-describedby"] = descriptionId
   }

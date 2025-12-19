@@ -8,10 +8,12 @@ import { GolfProfile } from '@/components/profile/GolfProfile';
 import { useGolfProfile } from '@/hooks/useGolfProfile';
 import { useAuthor } from '@/hooks/useAuthor';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
+import MobileContainer from '@/components/MobileContainer';
 
 function ProfileSkeleton() {
   return (
-    <div className="container mx-auto px-4 py-8 max-w-6xl space-y-6">
+    <MobileContainer className="py-8">
+      <div className="space-y-6">
       {/* Profile Header Skeleton */}
       <Card>
         <CardContent className="pt-6">
@@ -67,7 +69,8 @@ function ProfileSkeleton() {
           </CardContent>
         </Card>
       </div>
-    </div>
+      </div>
+    </MobileContainer>
   );
 }
 

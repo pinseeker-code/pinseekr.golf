@@ -1,6 +1,6 @@
 import { useForm } from "react-hook-form";
 import { useEffect, useCallback, useState } from "react";
-import { Loader2, Plus, Minus } from "lucide-react";
+import { Loader2, Plus, Minus, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/popover";
 import { useAddGolfCourse, type GolfCourse } from "@/hooks/useGolfCourses";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useUploadFile } from "@/hooks/useUploadFile";
 import { useToast } from "@/hooks/useToast";
 
 interface AddCourseDialogProps {
@@ -44,7 +45,12 @@ interface CourseFormData {
 export function AddCourseDialog({ open, onOpenChange, onCourseAdded, existingCourse }: AddCourseDialogProps) {
   const { user } = useCurrentUser();
   const { mutateAsync: addCourse, isPending } = useAddGolfCourse();
+  const { mutateAsync: uploadFile } = useUploadFile();
   const { toast } = useToast();
+
+  const [scorecardFiles, setScorecardFiles] = useState<File[]>([]);
+  const [scorecardPreviews, setScorecardPreviews] = useState<string[]>([]);
+  const [isUploadingFiles, setIsUploadingFiles] = useState(false);
   
   // State for par selection popup
   const [parPopoverOpen, setParPopoverOpen] = useState<{sectionIndex: number, hole: number} | null>(null);
@@ -279,6 +285,26 @@ export function AddCourseDialog({ open, onOpenChange, onCourseAdded, existingCou
     }
 
     try {
+      // If any scorecard files were selected, upload them first
+      let uploadedUrls: string[] | undefined = undefined;
+      if (scorecardFiles.length > 0) {
+        setIsUploadingFiles(true);
+        try {
+          const results = await Promise.all(scorecardFiles.map((f) => uploadFile(f)));
+          uploadedUrls = results.map((r) => {
+            // `useUploadFile` returns an array of tuples where the first tuple contains the URL
+            const first = Array.isArray(r) && r[0] ? r[0] : [];
+            return first && first[1] ? first[1] : '';
+          }).filter(Boolean);
+        } catch (err) {
+          console.error('Failed to upload scorecard images', err);
+          toast({ title: 'Upload failed', description: 'Failed to upload scorecard images', variant: 'destructive' });
+          setIsUploadingFiles(false);
+          return;
+        } finally {
+          setIsUploadingFiles(false);
+        }
+      }
       // Convert sections to flat hole structure for storage
       const { holes, sections: sectionNames, yardages } = convertSectionsToHoles(data.sections);
       const courseData = {
@@ -288,6 +314,7 @@ export function AddCourseDialog({ open, onOpenChange, onCourseAdded, existingCou
         yardages,
         sections: sectionNames,
         tees: data.tees || [],
+        scorecardImages: uploadedUrls && uploadedUrls.length > 0 ? uploadedUrls : undefined,
         // Pass existing ID to update the same Nostr event instead of creating a new one
         existingId: existingCourse?.id,
       };
@@ -344,10 +371,13 @@ export function AddCourseDialog({ open, onOpenChange, onCourseAdded, existingCou
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+    <DialogContent className="!fixed !inset-0 !left-0 !top-0 !translate-x-0 !translate-y-0 z-50 flex items-end sm:items-center justify-center p-2 sm:p-4 !max-w-none">
+      <div className="grid w-full sm:w-[90vw] max-w-xl gap-4 border bg-background p-3 sm:p-6 shadow-lg rounded-t-xl sm:rounded-lg max-h-[90vh] overflow-y-auto overflow-x-hidden"
+          style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' }}
+        >
         <DialogHeader>
-          <DialogTitle>{existingCourse ? "Edit Golf Course" : "Add Golf Course"}</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="text-base sm:text-xl">{existingCourse ? "Edit Golf Course" : "Add Golf Course"}</DialogTitle>
+          <DialogDescription className="text-xs sm:text-sm">
             {existingCourse 
               ? "Edit the course details and save your changes."
               : "Add a new course to the community database. This will be stored on the Nostr network for everyone to use."
@@ -355,7 +385,7 @@ export function AddCourseDialog({ open, onOpenChange, onCourseAdded, existingCou
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 overflow-hidden">
           {/* Basic Info */}
           <div className="space-y-4">
             <div>
@@ -374,7 +404,7 @@ export function AddCourseDialog({ open, onOpenChange, onCourseAdded, existingCou
               <Label className="text-sm">Tees</Label>
               <div className="space-y-2">
                 {(tees || []).map((t, idx) => (
-                  <div key={idx} className="flex items-center gap-2">
+                  <div key={idx} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                     <Input
                       placeholder="Tee name (e.g., Blue)"
                       value={t?.name || ''}
@@ -394,12 +424,12 @@ export function AddCourseDialog({ open, onOpenChange, onCourseAdded, existingCou
                         newT[idx] = { ...newT[idx], yardage: parseInt(e.target.value) || 0 };
                         setValue('tees', newT);
                       }}
-                      className="w-28"
+                      className="w-full sm:w-28"
                     />
                     <Button type="button" variant="outline" size="sm" onClick={() => {
                       const newT = (tees || []).filter((_, i) => i !== idx);
                       setValue('tees', newT);
-                    }}>Remove</Button>
+                    }} className="w-full sm:w-auto">Remove</Button>
                   </div>
                 ))}
 
@@ -425,6 +455,62 @@ export function AddCourseDialog({ open, onOpenChange, onCourseAdded, existingCou
                 <p className="text-sm text-destructive mt-1">{errors.location.message}</p>
               )}
             </div>
+            
+            {/* Scorecard Photos */}
+            <div>
+              <Label>Scorecard Photos</Label>
+              <div className="flex flex-col gap-2">
+                <input
+                  id="scorecard-files"
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    const files = e.target.files;
+                    if (!files) return;
+                    const list = Array.from(files);
+                    setScorecardFiles((prev) => [...prev, ...list]);
+                    setScorecardPreviews((prev) => [...prev, ...list.map((f) => URL.createObjectURL(f))]);
+                    (e.target as HTMLInputElement).value = '';
+                  }}
+                />
+                <div className="flex items-center gap-2">
+                  <label htmlFor="scorecard-files">
+                    <Button asChild size="sm" variant="outline">
+                      <span className="flex items-center"><Upload className="h-4 w-4 mr-2"/>Upload Photos</span>
+                    </Button>
+                  </label>
+                  <span className="text-sm text-muted-foreground">Optional — upload photos of the printed scorecard for verification</span>
+                </div>
+
+                {scorecardPreviews.length > 0 && (
+                  <div className="grid grid-cols-3 gap-2 mt-2">
+                    {scorecardPreviews.map((src, idx) => (
+                      <div key={idx} className="relative">
+                        <img src={src} alt={`scorecard-${idx}`} className="w-full h-24 object-cover rounded-md border" />
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          className="absolute top-1 right-1 h-6 w-6 p-0"
+                          onClick={() => {
+                            setScorecardPreviews((prev) => {
+                              const newP = [...prev];
+                              const removed = newP.splice(idx, 1);
+                              if (removed && removed[0]) URL.revokeObjectURL(removed[0]);
+                              return newP;
+                            });
+                            setScorecardFiles((prev) => prev.filter((_, i) => i !== idx));
+                          }}
+                        >
+                          ×
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Course Configuration */}
@@ -439,9 +525,9 @@ export function AddCourseDialog({ open, onOpenChange, onCourseAdded, existingCou
             </div>
 
             {/* Course Size Selector */}
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
               <Label className="text-sm">Course Size:</Label>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 flex-wrap">
                 <Button
                   type="button"
                   variant={sections.length === 1 ? "default" : "outline"}
@@ -503,12 +589,12 @@ export function AddCourseDialog({ open, onOpenChange, onCourseAdded, existingCou
             </div>
 
             {/* Sections with Named 9s */}
-            <div className="space-y-6">
+            <div className="space-y-6 overflow-hidden">
               {sections.map((section, sectionIndex) => (
-                <div key={sectionIndex} className="border rounded-lg p-4 space-y-3">
+                <div key={sectionIndex} className="border rounded-lg p-4 space-y-3 overflow-hidden">
                   {/* Section Name Input */}
-                  <div className="flex items-center gap-2">
-                    <Label className="text-sm font-medium">9-Hole Name</Label>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Label className="text-sm font-medium whitespace-nowrap">9-Hole Name</Label>
                     <Input
                       value={section.name}
                       onChange={(e) => updateSectionName(sectionIndex, e.target.value)}
@@ -533,20 +619,20 @@ export function AddCourseDialog({ open, onOpenChange, onCourseAdded, existingCou
                   </div>
                   
                   {/* 9-Hole Grid - Horizontal scroll contained within this box */}
-                  <div className="relative -mx-2">
-                    <div className="flex gap-1 px-2 pb-2 overflow-x-auto overscroll-x-contain" style={{ WebkitOverflowScrolling: 'touch' }}>
+                  <div className="relative -mx-3 overflow-hidden">
+                    <div className="flex gap-1 px-3 pb-2 overflow-x-auto overscroll-x-contain" style={{ WebkitOverflowScrolling: 'touch' }}>
                       {Array.from({ length: 9 }, (_, i) => {
                         const hole = i + 1;
                         const par = section.holes[hole] || 4;
                         return (
-                          <div key={hole} className="flex flex-col items-center gap-1 p-1.5 border rounded-md min-w-[56px] flex-shrink-0 bg-card">
-                          <Label className="text-xs font-semibold text-foreground">
+                          <div key={hole} className="flex flex-col items-center gap-1 p-1 sm:p-1.5 border rounded-md min-w-[50px] sm:min-w-[56px] flex-shrink-0 bg-card">
+                          <Label className="text-[10px] sm:text-xs font-semibold text-foreground">
                             {hole}
                           </Label>
                           
                           {/* Par Input */}
                           <div className="flex flex-col items-center">
-                            <Label className="text-xs text-muted-foreground">Par</Label>
+                            <Label className="text-[10px] sm:text-xs text-muted-foreground">Par</Label>
                             <Popover 
                               open={parPopoverOpen?.sectionIndex === sectionIndex && parPopoverOpen?.hole === hole}
                               onOpenChange={(open) => {
@@ -689,20 +775,20 @@ export function AddCourseDialog({ open, onOpenChange, onCourseAdded, existingCou
                           
                           {/* Yardage Input */}
                           <div className="flex flex-col items-center">
-                            <Label className="text-xs text-muted-foreground">Yds</Label>
+                            <Label className="text-[10px] sm:text-xs text-muted-foreground">Yds</Label>
                             <Input
                               type="number"
                               min="0"
                               value={(section.yardages && section.yardages[hole]) || ''}
                               onChange={(e) => updateHoleYardage(sectionIndex, hole, parseInt(e.target.value) || 0)}
                               placeholder="0"
-                              className="w-12 h-7 text-xs text-center px-1 py-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              className="w-10 sm:w-12 h-7 text-xs text-center px-0.5 sm:px-1 py-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             />
                           </div>
                           
                           {/* Handicap Input */}
                           <div className="flex flex-col items-center">
-                            <Label className="text-xs text-muted-foreground">HC</Label>
+                            <Label className="text-[10px] sm:text-xs text-muted-foreground">HC</Label>
                             <Input
                               type="number"
                               min="1"
@@ -712,7 +798,7 @@ export function AddCourseDialog({ open, onOpenChange, onCourseAdded, existingCou
                                 const value = parseInt(e.target.value) || (sectionIndex * 9 + hole);
                                 updateHoleHandicap(sectionIndex, hole, Math.max(1, Math.min(totalHoles, value)));
                               }}
-                              className="w-10 h-7 text-xs text-center px-1 py-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              className="w-9 sm:w-10 h-7 text-xs text-center px-0.5 sm:px-1 py-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             />
                           </div>
                         </div>
@@ -726,22 +812,24 @@ export function AddCourseDialog({ open, onOpenChange, onCourseAdded, existingCou
           </div>
 
           {/* Actions */}
-          <div className="flex justify-end gap-2 pt-4">
+          <div className="flex flex-col sm:flex-row justify-end gap-2 pt-4">
             <Button
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
+              className="w-full sm:w-auto"
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isPending}>
-              {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            <Button type="submit" disabled={isPending || isUploadingFiles} className="w-full sm:w-auto">
+              {(isPending || isUploadingFiles) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               <Plus className="mr-2 h-4 w-4" />
               {existingCourse ? "Save Changes" : "Add Course"}
             </Button>
           </div>
         </form>
-      </DialogContent>
+      </div>
+    </DialogContent>
     </Dialog>
   );
 }

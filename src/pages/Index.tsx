@@ -1,6 +1,7 @@
 import { useSeoMeta } from '@unhead/react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import MobileContainer from '@/components/MobileContainer';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { LoginArea } from '@/components/auth/LoginArea';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -37,19 +38,20 @@ const Index = () => {
       </header>
 
       {/* Hero Section */}
-      <main className="container mx-auto px-4 py-16">
-        <div className="text-center mb-16">
-          <h1 className="text-5xl font-bold text-gray-900 dark:text-white mb-6">
+      <main>
+        <MobileContainer className="py-16">
+          <div className="text-center mb-16">
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 dark:text-white mb-6">
             The Future of Golf Scoring
           </h1>
-          <p className="text-xl text-gray-600 dark:text-gray-300 mb-8 max-w-3xl mx-auto">
+          <p className="text-lg sm:text-xl text-gray-600 dark:text-gray-300 mb-8 max-w-3xl mx-auto">
             Track scoring and handicap, split costs and settle wagers with Lightning, discover new game modes. Built on Nostr.
           </p>
-          <div className="flex justify-center space-x-4">
+          <div className="flex flex-col sm:flex-row justify-center gap-4 sm:space-x-4">
             {user ? (
               <>
                 <Link to="/round/new">
-                  <Button size="lg" className="text-lg px-8 py-3">
+                  <Button size="lg" className="text-lg px-8 py-3 w-full sm:w-auto">
                     <span className="mr-2">⛳</span>
                     Start New Round
                   </Button>
@@ -57,7 +59,7 @@ const Index = () => {
                 {/* View Achievements button moved into the Achievement Badges card below */}
               </>
             ) : (
-              <div className="bg-white/90 dark:bg-gray-800/90 p-6 rounded-lg border">
+              <div className="bg-white/90 dark:bg-gray-800/90 p-6 rounded-lg border w-full sm:w-auto">
                 <p className="text-gray-600 dark:text-gray-400 mb-4">
                   Sign in with your Nostr identity to start tracking your golf scores
                 </p>
@@ -257,7 +259,8 @@ const Index = () => {
               MKStack
             </a>
           </p>
-        </div>
+          </div>
+        </MobileContainer>
       </main>
     </div>
   );

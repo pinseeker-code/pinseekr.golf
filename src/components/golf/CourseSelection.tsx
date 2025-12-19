@@ -73,46 +73,24 @@ export function CourseSelection({ selectedCourse, onSelectCourse, className, all
             </CardContent>
           </Card>
         ) : (
-          <Card className="border-dashed">
-            <CardContent className="p-6 text-center">
-              <p className="text-muted-foreground mb-4">No course selected</p>
-              <div className="flex gap-2 justify-center">
-                <Dialog open={showCourseSearch} onOpenChange={setShowCourseSearch}>
-                  <DialogTrigger asChild>
-                    <Button variant="outline">
-                      Browse Courses
-                    </Button>
-                  </DialogTrigger>
-                    <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-                      <DialogHeader className="flex items-center justify-between">
-                        <DialogTitle>Select Golf Course</DialogTitle>
-                        {allowAddCourse && (
-                          <div>
-                          <Button variant="ghost" size="sm" onClick={() => setShowAddCourse(true)}>
-                              <Plus className="h-4 w-4 mr-2" />
-                              Add Course
-                            </Button>
-                          </div>
-                        )}
-                      </DialogHeader>
-                      <CourseSearch
-                        onSelectCourse={(course) => {
-                          onSelectCourse(course);
-                          setShowCourseSearch(false);
-                        }}
-                        selectedCourse={selectedCourse}
-                      />
-                    </DialogContent>
-                </Dialog>
-                {allowAddCourse && (
-                  <Button onClick={() => setShowAddCourse(true)}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Course
-                  </Button>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm text-muted-foreground">Browse and search for courses</p>
+              {allowAddCourse && (
+                <Button variant="outline" size="sm" onClick={() => setShowAddCourse(true)} className="text-gray-900 dark:text-gray-100 font-medium">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add New Course
+                </Button>
+              )}
+            </div>
+            <CourseSearch
+              onSelectCourse={(course) => {
+                onSelectCourse(course);
+              }}
+              selectedCourse={selectedCourse}
+              onCreateCourse={() => setShowAddCourse(true)}
+            />
+          </div>
         )}
 
         {/* Action buttons when course is selected */}
@@ -133,7 +111,8 @@ export function CourseSelection({ selectedCourse, onSelectCourse, className, all
                     onSelectCourse(course);
                     setShowCourseSearch(false);
                   }}
-                  selectedCourse={selectedCourse}
+                    selectedCourse={selectedCourse}
+                    onCreateCourse={() => setShowAddCourse(true)}
                 />
               </DialogContent>
             </Dialog>

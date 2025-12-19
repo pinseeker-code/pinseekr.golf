@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Search, MapPin, User, Calendar, Tag } from 'lucide-react';
+import { Search, MapPin, Star, Calendar, Tag, Plus, User } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -15,9 +15,10 @@ interface CourseSearchProps {
   onSelectCourse: (course: GolfCourse) => void;
   selectedCourse?: GolfCourse;
   className?: string;
+  onCreateCourse?: () => void;
 }
 
-export function CourseSearch({ onSelectCourse, selectedCourse, className }: CourseSearchProps) {
+export function CourseSearch({ onSelectCourse, selectedCourse, className, onCreateCourse }: CourseSearchProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState<'my-courses' | 'search'>('my-courses');
 
@@ -52,10 +53,10 @@ export function CourseSearch({ onSelectCourse, selectedCourse, className }: Cour
         {/* Course Categories Tabs */}
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'my-courses' | 'search')}>
           <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="my-courses" className="flex items-center gap-2">
-              <User className="h-4 w-4" />
-              My Courses
-            </TabsTrigger>
+              <TabsTrigger value="my-courses" className="flex items-center gap-2">
+                <Star className="h-4 w-4" />
+                Saved Courses
+              </TabsTrigger>
             <TabsTrigger value="search" className="flex items-center gap-2">
               <Search className="h-4 w-4" />
               Search
@@ -71,6 +72,16 @@ export function CourseSearch({ onSelectCourse, selectedCourse, className }: Cour
               emptyMessage="No courses found. Create your first course!"
               showAuthor={false}
             />
+            <div className="pt-4 text-center">
+              <button
+                type="button"
+                onClick={() => onCreateCourse?.()}
+                className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-1 text-sm text-gray-900 hover:opacity-95"
+              >
+                <Plus className="h-4 w-4" />
+                Create New Course
+              </button>
+            </div>
           </TabsContent>
 
           <TabsContent value="search" className="space-y-4">
@@ -92,8 +103,19 @@ export function CourseSearch({ onSelectCourse, selectedCourse, className }: Cour
               emptyMessage="No public courses found. Try a different search term."
               showAuthor={true}
             />
+            <div className="pt-4 text-center">
+              <button
+                type="button"
+                onClick={() => onCreateCourse?.()}
+                className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-1 text-sm text-gray-900 hover:opacity-95"
+              >
+                <Plus className="h-4 w-4" />
+                Create New Course
+              </button>
+            </div>
           </TabsContent>
         </Tabs>
+        <p className="mt-2 text-xs text-muted-foreground">Note: Course data is crowdsourced — verify details before relying on them.</p>
       </div>
     </div>
   );

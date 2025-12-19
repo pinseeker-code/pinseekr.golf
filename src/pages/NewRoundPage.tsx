@@ -35,6 +35,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 import { CourseSelection } from '@/components/golf/CourseSelection';
 import { Layout } from '@/components/Layout';
+import MobileContainer from '@/components/MobileContainer';
 import { genUserName } from '@/lib/genUserName';
 import { AddPlayerDialog } from '@/components/AddPlayerDialog';
 import { useNWC } from '@/hooks/useNWCContext';
@@ -1511,10 +1512,10 @@ export const NewRoundPage: React.FC = () => {
   if (step === 'setup') {
     return (
       <Layout>
-        <div className="min-h-screen bg-gradient-to-br from-yellow-50 to-purple-50 dark:from-gray-900 dark:to-gray-800 py-8">
-          <div className="container mx-auto px-4">
+        <div className="min-h-screen bg-gradient-to-br from-yellow-50 to-purple-50 dark:from-gray-900 dark:to-gray-800 py-4">
+          <div className="container mx-auto px-2">
             <div className="max-w-4xl mx-auto">
-              <Card>
+              <Card className="bg-transparent border-0 shadow-none">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     Round Setup
@@ -1564,8 +1565,13 @@ export const NewRoundPage: React.FC = () => {
                       {/* Players List */}
                       <div className="space-y-3">
                         {round.players && round.players.length > 0 ? (
-                          round.players.map((player, index) => (
-                            <div key={player.playerId} className="p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
+                          round.players.map((player, index) => {
+                            // Check if this player has a verified profile
+                            const hasProfile = (player.playerId === user?.pubkey && metadata) || 
+                                             ((validatedPubkeys[index] || (player.playerId.length === 64 && /^[a-fA-F0-9]{64}$/.test(player.playerId))) && profileDataMap[index]?.metadata);
+                            
+                            return (
+                            <div key={player.playerId} className={`p-2 rounded-lg ${hasProfile ? 'bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800' : 'bg-transparent'}`}>
                               <div className="grid grid-cols-12 gap-3 items-center">
                                 {/* Always show avatar for all players */}
                                 <div className="col-span-1 flex justify-center">
@@ -1603,15 +1609,12 @@ export const NewRoundPage: React.FC = () => {
                                     <Label htmlFor={`name-${player.playerId}`}>
                                       {player.playerId === user?.pubkey ? `Player ${index + 1} (You)` : `Player ${index + 1}`}
                                     </Label>
-                                    <Badge variant="secondary" className="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                                      Joined
-                                    </Badge>
                                   </div>
                                   <div className="space-y-2">
                                     {/* Show profile card when Nostr profile is loaded - including logged-in user */}
                                     {(player.playerId === user?.pubkey && metadata) || 
                                      ((validatedPubkeys[index] || (player.playerId.length === 64 && /^[a-fA-F0-9]{64}$/.test(player.playerId))) && profileDataMap[index]?.metadata) ? (
-                                      <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-md">
+                                      <div className="flex items-center justify-between p-3 bg-transparent rounded-md">
                                         <div className="flex items-center space-x-3">
                                           <div className="flex-1 min-w-0">
                                             <p className="text-sm font-medium truncate">
@@ -1621,11 +1624,6 @@ export const NewRoundPage: React.FC = () => {
                                                    profileDataMap[index]?.metadata?.display_name || 
                                                    genUserName(validatedPubkeys[index] || player.playerId))}
                                             </p>
-                                            {(player.playerId === user?.pubkey ? metadata?.about : profileDataMap[index]?.metadata?.about) && (
-                                              <p className="text-xs text-muted-foreground truncate">
-                                                {player.playerId === user?.pubkey ? metadata?.about : profileDataMap[index]?.metadata?.about}
-                                              </p>
-                                            )}
                                           </div>
                                           <CheckCircle className="h-4 w-4 text-green-600 flex-shrink-0" />
                                         </div>
@@ -1659,7 +1657,7 @@ export const NewRoundPage: React.FC = () => {
                                     )}
                                   </div>
                                 </div>
-                                <div className="col-span-3">
+                                <div className="col-span-4">
                                   <Label htmlFor={`handicap-${player.playerId}`}>Handicap</Label>
                                   <Input
                                     id={`handicap-${player.playerId}`}
@@ -1673,10 +1671,10 @@ export const NewRoundPage: React.FC = () => {
                                     }}
                                   />
                                 </div>
-                                <div className="col-span-2">
+                                <div className="col-span-1 flex justify-end">
                                   <Button
                                     variant="ghost"
-                                    size="sm"
+                                    size="icon"
                                     onClick={() => removePlayer(index)}
                                   >
                                     <Trash2 className="h-4 w-4" />
@@ -1684,7 +1682,8 @@ export const NewRoundPage: React.FC = () => {
                                 </div>
                               </div>
                             </div>
-                          ))
+                            );
+                          })
                         ) : (
                           /* Empty state message */
                           <div className="p-6 text-center text-muted-foreground">
@@ -1882,19 +1881,20 @@ export const NewRoundPage: React.FC = () => {
                               )}
                             </div>
                           </div>
-                          <div className="col-span-3">
-                            <Label htmlFor="quick-handicap">Handicap</Label>
-                            <Input
-                              id="quick-handicap"
-                              type="number"
-                              min="0"
-                              max="54"
-                              defaultValue={0}
-                              disabled={!fallbackPlayerInput}
-                              className="border-blue-300 focus:border-blue-500"
-                            />
-                          </div>
-                          <div className="col-span-2">
+                          {fallbackPlayerInput && (
+                            <div className="col-span-3">
+                              <Label htmlFor="quick-handicap">Handicap</Label>
+                              <Input
+                                id="quick-handicap"
+                                type="number"
+                                min="0"
+                                max="54"
+                                defaultValue={0}
+                                className="border-blue-300 focus:border-blue-500"
+                              />
+                            </div>
+                          )}
+                          <div className={fallbackPlayerInput ? "col-span-2" : "col-span-5"}>
                             {fallbackPlayerInput && (
                               <Button
                                 variant="ghost"
@@ -2334,17 +2334,19 @@ export const NewRoundPage: React.FC = () => {
                                           <Label htmlFor="pinseekr-wagers-toggle" className="text-sm font-semibold text-yellow-700">Wagers for Pinseekr Cup</Label>
                                         </div>
                                       </div>
-                                      <div className="flex items-center gap-3">
-                                        <Checkbox
-                                          id="persist-tournament-wagers"
-                                          checked={persistTournamentWagers}
-                                          onCheckedChange={(v) => setPersistTournamentWagers(!!v)}
-                                        />
-                                        <div>
-                                          <Label htmlFor="persist-tournament-wagers" className="text-sm font-medium">Publish wagers with tournament</Label>
-                                          <div className="text-xs text-muted-foreground">Include per-format wagers in the published tournament event (optional)</div>
+                                      {pinseekrWagersEnabled && (
+                                        <div className="flex items-center gap-3">
+                                          <Checkbox
+                                            id="persist-tournament-wagers"
+                                            checked={persistTournamentWagers}
+                                            onCheckedChange={(v) => setPersistTournamentWagers(!!v)}
+                                          />
+                                          <div>
+                                            <Label htmlFor="persist-tournament-wagers" className="text-sm font-medium">Publish wagers with tournament</Label>
+                                            <div className="text-xs text-muted-foreground">Include per-format wagers in the published tournament event (optional)</div>
+                                          </div>
                                         </div>
-                                      </div>
+                                      )}
                                     </div>
 
                                     {pinseekrWagersEnabled && (
@@ -2546,16 +2548,16 @@ export const NewRoundPage: React.FC = () => {
 
                         {/* Game Mode Selection Interface */}
                         {!selectedGameModes.pinseekrCup && (
-                          <div className="space-y-6">
+                          <div className="space-y-4">
                             <div className="text-center">
-                              <h4 className="text-xl font-semibold mb-2">Select Game Mode</h4>
+                              <h4 className="text-xl font-semibold mb-2">Select Game Mode(s)</h4>
                               <p className="text-muted-foreground">Choose how you want to score your round</p>
                             </div>
                             
-                            <div data-hide-badges className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div data-hide-badges className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                               {/* Stroke Play */}
                               <div 
-                                className={`relative p-6 rounded-xl border-2 cursor-pointer transition-all duration-300 hover:shadow-lg hover:scale-105 ${
+                                className={`relative p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 hover:shadow-lg hover:scale-105 ${
                                   selectedGameModes.strokePlay 
                                     ? 'border-purple-500 bg-purple-50 dark:bg-purple-950 shadow-lg shadow-purple-200 dark:shadow-purple-900' 
                                     : 'border-gray-200 dark:border-gray-700 hover:border-purple-300 dark:hover:border-purple-600 bg-white dark:bg-gray-800'
@@ -2582,7 +2584,7 @@ export const NewRoundPage: React.FC = () => {
 
                               {/* Match Play */}
                               <div 
-                                className={`relative p-6 rounded-xl border-2 cursor-pointer transition-all duration-300 hover:shadow-lg hover:scale-105 ${
+                                className={`relative p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 hover:shadow-lg hover:scale-105 ${
                                   selectedGameModes.matchPlay 
                                     ? 'border-red-500 bg-red-50 dark:bg-red-950 shadow-lg shadow-red-200 dark:shadow-red-900' 
                                     : 'border-gray-200 dark:border-gray-700 hover:border-red-300 dark:hover:border-red-600 bg-white dark:bg-gray-800'
@@ -2609,7 +2611,7 @@ export const NewRoundPage: React.FC = () => {
 
                               {/* Skins */}
                               <div 
-                                className={`relative p-6 rounded-xl border-2 cursor-pointer transition-all duration-300 hover:shadow-lg hover:scale-105 ${
+                                className={`relative p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 hover:shadow-lg hover:scale-105 ${
                                   selectedGameModes.skins 
                                     ? 'border-yellow-500 bg-yellow-50 dark:bg-yellow-950 shadow-lg shadow-yellow-200 dark:shadow-yellow-900' 
                                     : 'border-gray-200 dark:border-gray-700 hover:border-yellow-300 dark:hover:border-yellow-600 bg-white dark:bg-gray-800'
@@ -2636,7 +2638,7 @@ export const NewRoundPage: React.FC = () => {
 
                               {/* Nassau */}
                               <div 
-                                className={`relative p-6 rounded-xl border-2 cursor-pointer transition-all duration-300 hover:shadow-lg hover:scale-105 ${
+                                className={`relative p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 hover:shadow-lg hover:scale-105 ${
                                   selectedGameModes.nassau 
                                     ? 'border-amber-500 bg-amber-50 dark:bg-amber-950 shadow-lg shadow-amber-200 dark:shadow-amber-900' 
                                     : 'border-gray-200 dark:border-gray-700 hover:border-amber-300 dark:hover:border-amber-600 bg-white dark:bg-gray-800'
@@ -2663,7 +2665,7 @@ export const NewRoundPage: React.FC = () => {
 
                               {/* Points (Stableford) */}
                               <div 
-                                className={`relative p-6 rounded-xl border-2 cursor-pointer transition-all duration-300 hover:shadow-lg hover:scale-105 ${
+                                className={`relative p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 hover:shadow-lg hover:scale-105 ${
                                   selectedGameModes.points 
                                     ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950 shadow-lg shadow-indigo-200 dark:shadow-indigo-900' 
                                     : 'border-gray-200 dark:border-gray-700 hover:border-indigo-300 dark:hover:border-indigo-600 bg-white dark:bg-gray-800'
@@ -2713,43 +2715,45 @@ export const NewRoundPage: React.FC = () => {
                                 {/* Stableford rules moved to the Stableford tab below */}
                               </div>
 
-                              {/* Wolf */}
-                              <div 
-                                className={`relative p-6 rounded-xl border-2 cursor-pointer transition-all duration-300 hover:shadow-lg hover:scale-105 ${
-                                  selectedGameModes.wolf 
-                                    ? 'border-orange-500 bg-orange-50 dark:bg-orange-950 shadow-lg shadow-orange-200 dark:shadow-orange-900' 
-                                    : 'border-gray-200 dark:border-gray-700 hover:border-orange-300 dark:hover:border-orange-600 bg-white dark:bg-gray-800'
-                                }`}
-                                onClick={() => toggleGameMode('wolf')}
-                              >
-                                <div className="flex items-center gap-3 mb-3">
-                                  <div className="w-8 h-8 rounded-full bg-orange-100 dark:bg-orange-900 flex items-center justify-center">
-                                    <span className="text-orange-600 dark:text-orange-400 font-bold">💰</span>
+                              {/* Wolf - Hidden for initial launch, will be added back after more iteration */}
+                              {false && (
+                                <div 
+                                  className={`relative p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 hover:shadow-lg hover:scale-105 ${
+                                    selectedGameModes.wolf 
+                                      ? 'border-orange-500 bg-orange-50 dark:bg-orange-950 shadow-lg shadow-orange-200 dark:shadow-orange-900' 
+                                      : 'border-gray-200 dark:border-gray-700 hover:border-orange-300 dark:hover:border-orange-600 bg-white dark:bg-gray-800'
+                                  }`}
+                                  onClick={() => toggleGameMode('wolf')}
+                                >
+                                  <div className="flex items-center gap-3 mb-3">
+                                    <div className="w-8 h-8 rounded-full bg-orange-100 dark:bg-orange-900 flex items-center justify-center">
+                                      <span className="text-orange-600 dark:text-orange-400 font-bold">💰</span>
+                                    </div>
+                                    <h3 className="font-semibold text-lg">Wolf</h3>
                                   </div>
-                                  <h3 className="font-semibold text-lg">Wolf</h3>
+                                  <p className="text-sm text-muted-foreground leading-relaxed">
+                                    Strategic game with rotating roles and partnerships
+                                  </p>
+                                  {selectedGameModes.wolf && (
+                                    <>
+                                      <div className="absolute top-2 right-2">
+                                        <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-orange-600 text-white rounded-full">
+                                          Selected
+                                        </span>
+                                      </div>
+                                      <div className="mt-3">
+                                        <Button size="sm" variant="outline" onClick={() => setWolfSettingsOpen(true)}>
+                                          Wolf Settings
+                                        </Button>
+                                      </div>
+                                    </>
+                                  )}
                                 </div>
-                                <p className="text-sm text-muted-foreground leading-relaxed">
-                                  Strategic game with rotating roles and partnerships
-                                </p>
-                                {selectedGameModes.wolf && (
-                                  <>
-                                    <div className="absolute top-2 right-2">
-                                      <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-orange-600 text-white rounded-full">
-                                        Selected
-                                      </span>
-                                    </div>
-                                    <div className="mt-3">
-                                      <Button size="sm" variant="outline" onClick={() => setWolfSettingsOpen(true)}>
-                                        Wolf Settings
-                                      </Button>
-                                    </div>
-                                  </>
-                                )}
-                              </div>
+                              )}
 
                               {/* Vegas */}
                               <div 
-                                className={`relative p-6 rounded-xl border-2 cursor-pointer transition-all duration-300 hover:shadow-lg hover:scale-105 ${
+                                className={`relative p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 hover:shadow-lg hover:scale-105 ${
                                   selectedGameModes.vegas 
                                     ? 'border-pink-500 bg-pink-50 dark:bg-pink-950 shadow-lg shadow-pink-200 dark:shadow-pink-900' 
                                     : 'border-gray-200 dark:border-gray-700 hover:border-pink-300 dark:hover:border-pink-600 bg-white dark:bg-gray-800'
@@ -2774,65 +2778,69 @@ export const NewRoundPage: React.FC = () => {
                                 )}
                               </div>
 
-                              {/* Sixes */}
-                              <div 
-                                className={`relative p-6 rounded-xl border-2 cursor-pointer transition-all duration-300 hover:shadow-lg hover:scale-105 ${
-                                  selectedGameModes.sixes 
-                                    ? 'border-green-500 bg-green-50 dark:bg-green-950 shadow-lg shadow-green-200 dark:shadow-green-900' 
-                                    : 'border-gray-200 dark:border-gray-700 hover:border-green-300 dark:hover:border-green-600 bg-white dark:bg-gray-800'
-                                }`}
-                                onClick={() => toggleGameMode('sixes')}
-                              >
-                                <div className="flex items-center gap-3 mb-3">
-                                  <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center">
-                                    <span className="text-green-600 dark:text-green-400 font-bold">👥</span>
+                              {/* Sixes - Hidden for initial launch, will be added back after more iteration */}
+                              {false && (
+                                <div 
+                                  className={`relative p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 hover:shadow-lg hover:scale-105 ${
+                                    selectedGameModes.sixes 
+                                      ? 'border-green-500 bg-green-50 dark:bg-green-950 shadow-lg shadow-green-200 dark:shadow-green-900' 
+                                      : 'border-gray-200 dark:border-gray-700 hover:border-green-300 dark:hover:border-green-600 bg-white dark:bg-gray-800'
+                                  }`}
+                                  onClick={() => toggleGameMode('sixes')}
+                                >
+                                  <div className="flex items-center gap-3 mb-3">
+                                    <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center">
+                                      <span className="text-green-600 dark:text-green-400 font-bold">👥</span>
+                                    </div>
+                                    <h3 className="font-semibold text-lg">Sixes</h3>
                                   </div>
-                                  <h3 className="font-semibold text-lg">Sixes</h3>
+                                  <p className="text-sm text-muted-foreground leading-relaxed">
+                                    Rotating partnerships every 6 holes with best ball scoring
+                                  </p>
+                                  {selectedGameModes.sixes && (
+                                    <div className="absolute top-2 right-2">
+                                      <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-green-600 text-white rounded-full">
+                                        Selected
+                                      </span>
+                                    </div>
+                                  )}
                                 </div>
-                                <p className="text-sm text-muted-foreground leading-relaxed">
-                                  Rotating partnerships every 6 holes with best ball scoring
-                                </p>
-                                {selectedGameModes.sixes && (
-                                  <div className="absolute top-2 right-2">
-                                    <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-green-600 text-white rounded-full">
-                                      Selected
-                                    </span>
-                                  </div>
-                                )}
-                              </div>
+                              )}
 
-                              {/* Dots */}
-                              <div 
-                                className={`relative p-6 rounded-xl border-2 cursor-pointer transition-all duration-300 hover:shadow-lg hover:scale-105 ${
-                                  selectedGameModes.dots 
-                                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-950 shadow-lg shadow-blue-200 dark:shadow-blue-900' 
-                                    : 'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 bg-white dark:bg-gray-800'
-                                }`}
-                                onClick={() => toggleGameMode('dots')}
-                              >
-                                <div className="flex items-center gap-3 mb-3">
-                                  <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
-                                    <span className="text-blue-600 dark:text-blue-400 font-bold">🎯</span>
+                              {/* Dots - Hidden for initial launch, will be added back after more iteration */}
+                              {false && (
+                                <div 
+                                  className={`relative p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 hover:shadow-lg hover:scale-105 ${
+                                    selectedGameModes.dots 
+                                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-950 shadow-lg shadow-blue-200 dark:shadow-blue-900' 
+                                      : 'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 bg-white dark:bg-gray-800'
+                                  }`}
+                                  onClick={() => toggleGameMode('dots')}
+                                >
+                                  <div className="flex items-center gap-3 mb-3">
+                                    <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
+                                      <span className="text-blue-600 dark:text-blue-400 font-bold">🎯</span>
+                                    </div>
+                                    <h3 className="font-semibold text-lg">Dots</h3>
                                   </div>
-                                  <h3 className="font-semibold text-lg">Dots</h3>
+                                  <p className="text-sm text-muted-foreground leading-relaxed">
+                                    Par-based game with bonus points for birdies
+                                  </p>
+                                  {selectedGameModes.dots && (
+                                    <div className="absolute top-2 right-2">
+                                      <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-blue-600 text-white rounded-full">
+                                        Selected
+                                      </span>
+                                    </div>
+                                  )}
                                 </div>
-                                <p className="text-sm text-muted-foreground leading-relaxed">
-                                  Par-based game with bonus points for birdies
-                                </p>
-                                {selectedGameModes.dots && (
-                                  <div className="absolute top-2 right-2">
-                                    <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-blue-600 text-white rounded-full">
-                                      Selected
-                                    </span>
-                                  </div>
-                                )}
-                              </div>
+                              )}
 
                               {/* Rolling Strokes removed per configuration */}
 
                               {/* Snake */}
                               <div 
-                                className={`relative p-6 rounded-xl border-2 cursor-pointer transition-all duration-300 hover:shadow-lg hover:scale-105 ${
+                                className={`relative p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 hover:shadow-lg hover:scale-105 ${
                                   selectedGameModes.snake 
                                     ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950 shadow-lg shadow-emerald-200 dark:shadow-emerald-900' 
                                     : 'border-gray-200 dark:border-gray-700 hover:border-emerald-300 dark:hover:border-emerald-600 bg-white dark:bg-gray-800'
@@ -2872,108 +2880,114 @@ export const NewRoundPage: React.FC = () => {
                       </div>
 
                       {/* Game Mode Description Box with Tabs */}
-                      {!selectedGameModes.pinseekrCup && selectedGameModeList.length > 0 && (
+                      {!selectedGameModes.pinseekrCup && (
                         <Card className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
-                          <Tabs value={activeGameModeTab} onValueChange={setActiveGameModeTab} className="w-full">
-                            {/* Tab Headers */}
-                            <TabsList className="grid w-full bg-blue-100 dark:bg-blue-900" style={{ gridTemplateColumns: `repeat(${selectedGameModeList.length}, minmax(0, 1fr))` }}>
+                          {selectedGameModeList.length > 0 ? (
+                            <Tabs value={activeGameModeTab} onValueChange={setActiveGameModeTab} className="w-full">
+                              {/* Tab Headers */}
+                              <TabsList className="flex w-full bg-blue-100 dark:bg-blue-900 overflow-x-auto">
+                                {selectedGameModeList.map((gameMode) => (
+                                  <TabsTrigger 
+                                    key={gameMode.key} 
+                                    value={gameMode.key}
+                                    className="flex-shrink-0 text-blue-900 dark:text-blue-100 data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap"
+                                  >
+                                    {gameMode.name}
+                                  </TabsTrigger>
+                                ))}
+                              </TabsList>
+
+                              {/* Tab Content */}
                               {selectedGameModeList.map((gameMode) => (
-                                <TabsTrigger 
-                                  key={gameMode.key} 
-                                  value={gameMode.key}
-                                  className="text-blue-900 dark:text-blue-100 data-[state=active]:bg-blue-600 data-[state=active]:text-white"
-                                >
-                                  {gameMode.name}
-                                </TabsTrigger>
-                              ))}
-                            </TabsList>
+                                <TabsContent key={gameMode.key} value={gameMode.key}>
+                                  <CardHeader>
+                                    <CardTitle className="flex items-center space-x-2 text-blue-900 dark:text-blue-100">
+                                      <Target className="h-5 w-5 text-blue-600" />
+                                      <span>{gameMode.name}</span>
+                                    </CardTitle>
+                                    <CardDescription className="text-blue-700 dark:text-blue-300">
+                                      {gameMode.description}
+                                    </CardDescription>
+                                  </CardHeader>
+                                  <CardContent>
+                                    <div className="space-y-3">
+                                      <div>
+                                        <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">How to Play:</h4>
+                                        <p className="text-blue-700 dark:text-blue-300 text-sm leading-relaxed">
+                                          {gameMode.rules}
+                                        </p>
+                                      </div>
 
-                            {/* Tab Content */}
-                            {selectedGameModeList.map((gameMode) => (
-                              <TabsContent key={gameMode.key} value={gameMode.key}>
-                                <CardHeader>
-                                  <CardTitle className="flex items-center space-x-2 text-blue-900 dark:text-blue-100">
-                                    <Target className="h-5 w-5 text-blue-600" />
-                                    <span>{gameMode.name}</span>
-                                  </CardTitle>
-                                  <CardDescription className="text-blue-700 dark:text-blue-300">
-                                    {gameMode.description}
-                                  </CardDescription>
-                                </CardHeader>
-                                <CardContent>
-                                  <div className="space-y-3">
-                                    <div>
-                                      <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">How to Play:</h4>
-                                      <p className="text-blue-700 dark:text-blue-300 text-sm leading-relaxed">
-                                        {gameMode.rules}
-                                      </p>
-                                    </div>
+                                      {gameMode.key === 'points' && (
+                                        <div className="mt-2 p-3 bg-indigo-50 dark:bg-indigo-950 border border-indigo-200 dark:border-indigo-800 rounded">
+                                          <div className="text-sm font-medium text-indigo-900 dark:text-indigo-100 mb-3">Stableford Rules</div>
 
-                                    {gameMode.key === 'points' && (
-                                      <div className="mt-2 p-3 bg-indigo-50 dark:bg-indigo-950 border border-indigo-200 dark:border-indigo-800 rounded">
-                                        <div className="text-sm font-medium text-indigo-900 dark:text-indigo-100 mb-3">Stableford Rules</div>
-
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                          <div
-                                            className={`bg-white dark:bg-gray-900 p-3 rounded border cursor-pointer transition-all ${
-                                              !modifiedStableford
-                                                ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950 shadow-md'
-                                                : 'border-gray-200 dark:border-gray-700 hover:border-indigo-300'
+                                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div
+                                              className={`bg-white dark:bg-gray-900 p-3 rounded border cursor-pointer transition-all ${
+                                                !modifiedStableford
+                                                  ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950 shadow-md'
+                                                  : 'border-gray-200 dark:border-gray-700 hover:border-indigo-300'
                                             }`}
-                                            onClick={() => setModifiedStableford(false)}
-                                          >
-                                            <div className={`text-sm font-semibold mb-2 ${!modifiedStableford ? 'text-indigo-600' : 'text-gray-700 dark:text-gray-400'}`}>Standard Stableford</div>
-                                            <table className="w-full text-sm">
-                                              <thead>
-                                                <tr className="text-left"><th>Score vs Par</th><th className="text-right">Points</th></tr>
-                                              </thead>
-                                              <tbody>
-                                                <tr><td>Albatross (3 under)</td><td className="text-right">5</td></tr>
-                                                <tr><td>Eagle (2 under)</td><td className="text-right">4</td></tr>
-                                                <tr><td>Birdie (1 under)</td><td className="text-right">3</td></tr>
-                                                <tr><td>Par</td><td className="text-right">2</td></tr>
-                                                <tr><td>Bogey</td><td className="text-right">1</td></tr>
-                                                <tr><td>Double bogey or worse</td><td className="text-right">0</td></tr>
-                                              </tbody>
-                                            </table>
-                                          </div>
+                                              onClick={() => setModifiedStableford(false)}
+                                            >
+                                              <div className={`text-sm font-semibold mb-2 ${!modifiedStableford ? 'text-indigo-600' : 'text-gray-700 dark:text-gray-400'}`}>Standard Stableford</div>
+                                              <table className="w-full text-sm">
+                                                <thead>
+                                                  <tr className="text-left"><th>Score vs Par</th><th className="text-right">Points</th></tr>
+                                                </thead>
+                                                <tbody>
+                                                  <tr><td>Albatross (3 under)</td><td className="text-right">5</td></tr>
+                                                  <tr><td>Eagle (2 under)</td><td className="text-right">4</td></tr>
+                                                  <tr><td>Birdie (1 under)</td><td className="text-right">3</td></tr>
+                                                  <tr><td>Par</td><td className="text-right">2</td></tr>
+                                                  <tr><td>Bogey</td><td className="text-right">1</td></tr>
+                                                  <tr><td>Double bogey or worse</td><td className="text-right">0</td></tr>
+                                                </tbody>
+                                              </table>
+                                            </div>
 
-                                          <div
-                                            className={`bg-white dark:bg-gray-900 p-3 rounded border cursor-pointer transition-all ${
-                                              modifiedStableford
-                                                ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950 shadow-md'
-                                                : 'border-gray-200 dark:border-gray-700 hover:border-indigo-300'
+                                            <div
+                                              className={`bg-white dark:bg-gray-900 p-3 rounded border cursor-pointer transition-all ${
+                                                modifiedStableford
+                                                  ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950 shadow-md'
+                                                  : 'border-gray-200 dark:border-gray-700 hover:border-indigo-300'
                                             }`}
-                                            onClick={() => setModifiedStableford(true)}
-                                          >
-                                            <div className={`text-sm font-semibold mb-2 ${modifiedStableford ? 'text-indigo-600' : 'text-gray-700 dark:text-gray-400'}`}>Modified Stableford</div>
-                                            <table className="w-full text-sm">
-                                              <thead>
-                                                <tr className="text-left"><th>Score vs Par</th><th className="text-right">Points</th></tr>
-                                              </thead>
-                                              <tbody>
-                                                <tr><td>Albatross (3 under)</td><td className="text-right">8</td></tr>
-                                                <tr><td>Eagle (2 under)</td><td className="text-right">5</td></tr>
-                                                <tr><td>Birdie (1 under)</td><td className="text-right">2</td></tr>
-                                                <tr><td>Par</td><td className="text-right">0</td></tr>
-                                                <tr><td>Bogey</td><td className="text-right">-1</td></tr>
-                                                <tr><td>Double bogey or worse</td><td className="text-right">-3</td></tr>
-                                              </tbody>
-                                            </table>
+                                              onClick={() => setModifiedStableford(true)}
+                                            >
+                                              <div className={`text-sm font-semibold mb-2 ${modifiedStableford ? 'text-indigo-600' : 'text-gray-700 dark:text-gray-400'}`}>Modified Stableford</div>
+                                              <table className="w-full text-sm">
+                                                <thead>
+                                                  <tr className="text-left"><th>Score vs Par</th><th className="text-right">Points</th></tr>
+                                                </thead>
+                                                <tbody>
+                                                  <tr><td>Albatross (3 under)</td><td className="text-right">8</td></tr>
+                                                  <tr><td>Eagle (2 under)</td><td className="text-right">5</td></tr>
+                                                  <tr><td>Birdie (1 under)</td><td className="text-right">2</td></tr>
+                                                  <tr><td>Par</td><td className="text-right">0</td></tr>
+                                                  <tr><td>Bogey</td><td className="text-right">-1</td></tr>
+                                                  <tr><td>Double bogey or worse</td><td className="text-right">-3</td></tr>
+                                                </tbody>
+                                              </table>
+                                            </div>
                                           </div>
                                         </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                </CardContent>
-                              </TabsContent>
-                            ))}
-                          </Tabs>
+                                      )}
+                                    </div>
+                                  </CardContent>
+                                </TabsContent>
+                              ))}
+                            </Tabs>
+                          ) : (
+                            <CardContent>
+                              <div className="p-4 text-center text-sm text-muted-foreground">Select a game mode to see detailed rules</div>
+                            </CardContent>
+                          )}
                         </Card>
                       )}
 
                       {/* Selected Game Modes Summary */}
-                      {!selectedGameModes.pinseekrCup && selectedGameModeList.length > 0 && (
+                      {!selectedGameModes.pinseekrCup && (
                         <Card>
                           <CardHeader>
                             <div className="flex items-center space-x-4">
@@ -2987,18 +3001,20 @@ export const NewRoundPage: React.FC = () => {
                                 <Zap className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
                                 <Label htmlFor="wagers-toggle" className="text-base font-semibold text-yellow-700 dark:text-yellow-300">Lightning Wagers</Label>
                               </div>
-                                  <div className="ml-4 flex items-center gap-2">
-                                    <Checkbox id="persist-wagers" checked={persistWagers} onCheckedChange={(v) => setPersistWagers(!!v)} />
-                                    <div>
-                                      <Label htmlFor="persist-wagers" className="text-sm font-medium">Publish wagers</Label>
-                                      <div className="text-xs text-muted-foreground">Include wagers in published game event</div>
+                                  {wagersEnabled && (
+                                    <div className="ml-4 flex items-center gap-2">
+                                      <Checkbox id="persist-wagers" checked={persistWagers} onCheckedChange={(v) => setPersistWagers(!!v)} />
+                                      <div>
+                                        <Label htmlFor="persist-wagers" className="text-sm font-medium">Publish wagers</Label>
+                                        <div className="text-xs text-muted-foreground">Include wagers in published game event</div>
+                                      </div>
                                     </div>
-                                  </div>
+                                  )}
                             </div>
                           </CardHeader>
                           <CardContent>
                             <div className="space-y-3">
-                              {selectedGameModeList.map((gameMode) => {
+                              {selectedGameModeList.length > 0 ? selectedGameModeList.map((gameMode) => {
                                 // Determine wager structure for each game mode
                                 const getWagerStructure = (mode: string) => {
                                   switch (mode) {
@@ -3219,7 +3235,11 @@ export const NewRoundPage: React.FC = () => {
                                     )}
                                   </div>
                                 );
-                              })}
+                              }) : (
+                                <div className="p-4 text-center text-sm text-muted-foreground">
+                                  Select a game mode to enable wagers
+                                </div>
+                              )}
                               
                               {wagersEnabled && (
                                 <>
@@ -3559,7 +3579,8 @@ export const NewRoundPage: React.FC = () => {
   return (
     <Layout>
       <div className="min-h-screen bg-gradient-to-br from-yellow-50 to-purple-50 dark:from-gray-900 dark:to-gray-800 py-8">
-        <div className="container mx-auto px-4">
+        <MobileContainer>
+          <div>
           <div className="max-w-6xl mx-auto">
             <div className="mb-8">
               <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
@@ -3597,7 +3618,8 @@ export const NewRoundPage: React.FC = () => {
               )}
             </div>
           </div>
-        </div>
+          </div>
+        </MobileContainer>
       </div>
 
       {/* Add Player Dialog */}

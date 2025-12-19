@@ -1,6 +1,7 @@
 import React from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Layout } from '@/components/Layout';
+import MobileContainer from '@/components/MobileContainer';
 import { ScoreCard } from '@/components/scoring/ScoreCard';
 import type { GolfRound } from '@/lib/golf/types';
 
@@ -37,7 +38,7 @@ export const ScoreEntryPage: React.FC = () => {
 
   return (
     <Layout>
-      <div className="container mx-auto p-4">
+      <MobileContainer className="p-4">
         <ScoreCard
           round={round}
           course={null}
@@ -45,7 +46,7 @@ export const ScoreEntryPage: React.FC = () => {
           onSaveRound={handleSaveRound}
           onShareRound={handleShareRound}
         />
-      </div>
+      </MobileContainer>
     </Layout>
   );
 };

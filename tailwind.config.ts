@@ -11,13 +11,19 @@ export default {
 	],
 	prefix: "",
 	theme: {
-		container: {
-			center: true,
-			padding: '2rem',
-			screens: {
-				'2xl': '1400px'
-			}
-		},
+			// Mobile-first container defaults: smaller padding and constrained max width
+			container: {
+				center: true,
+				padding: '1rem',
+				screens: {
+					DEFAULT: '100%',
+					sm: '640px',
+					md: '768px',
+					lg: '1024px',
+					xl: '1280px',
+					'2xl': '1400px'
+				}
+			},
 		extend: {
 			colors: {
 				border: 'hsl(var(--border))',

@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Layout } from '@/components/Layout';
+import MobileContainer from '@/components/MobileContainer';
 import { ScoreCard } from '@/components/scoring/ScoreCard';
 import { Scoreboard } from '@/components/scoring/Scoreboard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -54,8 +55,8 @@ export const DemoRoundPage: React.FC = () => {
   return (
     <Layout>
       <div className="min-h-screen bg-gradient-to-br from-yellow-50 to-purple-50 dark:from-gray-900 dark:to-gray-800 py-4">
-        <div className="container mx-auto px-4">
-          <div className="max-w-4xl mx-auto">
+        <MobileContainer>
+          <div>
             {/* Header */}
             <div className="flex items-center justify-between mb-4">
               <Button 
@@ -116,7 +117,7 @@ export const DemoRoundPage: React.FC = () => {
 
             {/* Summary Dialog */}
             <Dialog open={showSummary} onOpenChange={setShowSummary}>
-              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogContent className="w-full max-w-md sm:max-w-2xl max-h-[90vh] overflow-y-auto mx-4 sm:mx-auto">
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2 text-xl">
                     <Trophy className="h-6 w-6 text-yellow-500" />
@@ -168,15 +169,15 @@ export const DemoRoundPage: React.FC = () => {
                           <CardContent className="space-y-3">
                             <div className="grid grid-cols-2 gap-2 text-sm">
                               <div>
-                                <div className="text-gray-500">Gross</div>
-                                <div className="text-xl font-bold">{player.grossTotal}</div>
+                                <div className="text-sm text-gray-500">Active Modes</div>
+                                <div className="flex gap-2 mt-1">
+                                  {/* mode badges */}
+                                </div>
                               </div>
+
                               <div>
                                 <div className="text-gray-500">To Par</div>
-                                <div className={`text-xl font-bold ${
-                                  player.toPar < 0 ? 'text-green-600' : 
-                                  player.toPar > 0 ? 'text-red-600' : 'text-gray-600'
-                                }`}>
+                                <div className={`text-xl font-bold ${player.toPar < 0 ? 'text-green-600' : player.toPar > 0 ? 'text-red-600' : 'text-gray-600'}`}>
                                   {player.toPar > 0 ? '+' : ''}{player.toPar}
                                 </div>
                               </div>
@@ -287,7 +288,7 @@ export const DemoRoundPage: React.FC = () => {
 
             {/* Intro Dialog */}
             <Dialog open={showIntro} onOpenChange={setShowIntro}>
-              <DialogContent className="max-w-md">
+              <DialogContent className="w-full max-w-md mx-4 sm:mx-auto">
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2">
                     <span className="text-2xl">⛳</span>
@@ -330,7 +331,7 @@ export const DemoRoundPage: React.FC = () => {
               </DialogContent>
             </Dialog>
           </div>
-        </div>
+        </MobileContainer>
       </div>
     </Layout>
   );

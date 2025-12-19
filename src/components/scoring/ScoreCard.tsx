@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
-import { HoleScore, GolfRound } from '@/lib/golf/types';
+import { HoleScore, GolfRound, PlayerInRound } from '@/lib/golf/types';
 import { useRoundPersistence } from '@/hooks/useRoundPersistence';
 import { Scoreboard } from './Scoreboard';
 import { 
@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { snakeEngine } from '@/lib/golf/snakeEngine';
 import { cn } from '@/lib/utils';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 interface ScoreCardProps {
   round: GolfRound;
@@ -45,6 +46,8 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({
   const [expandedSand, setExpandedSand] = useState(false);
   const [expandedPenalties, setExpandedPenalties] = useState(false);
   const [manualInput, setManualInput] = useState<{ field: string; value: string }>({ field: '', value: '' });
+
+  const isMobile = useIsMobile();
 
   // Helper function to get section name for current hole
   const getCurrentSectionName = (): string | null => {
@@ -115,7 +118,7 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({
   }, [course]);
 
   // Compute totals (gross and net) for a single player using per-hole handicap allocation
-  const computePlayerTotals = React.useCallback((player: typeof round.players[number], r: GolfRound) => {
+  const computePlayerTotals = React.useCallback((player: PlayerInRound, r: GolfRound) => {
     let total = 0;
     let netTotal = 0;
 
@@ -146,7 +149,7 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({
     });
 
     return { total, netTotal };
-  }, [course]);
+  }, [getHoleStrokeIndexForRound]);
 
   // Recompute totals for all players in the round and update their fields
   const computeTotalsInRound = React.useCallback((r: GolfRound) => {
@@ -175,14 +178,17 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({
     const hasSnakeMode = round.gameMode === 'snake' || round.gameModes?.includes('snake');
     if (!hasSnakeMode) return null;
 
-    // Build putts data directly from the holes data
+    // Build per-player putts data from player's holeDetails (fall back to hole-level if present)
     const putts: { [playerId: string]: { [hole: number]: number } } = {};
-    round.players.forEach(player => {
+    round.players.forEach((player) => {
       putts[player.playerId] = {};
       round.holes.forEach((hole, holeIndex) => {
-        // Only include holes up to current hole and only if putts are recorded
-        if (holeIndex <= currentHole && hole.putts > 0) {
-          putts[player.playerId][hole.holeNumber] = hole.putts;
+        if (holeIndex <= currentHole) {
+          const playerHoleDetails = player.holeDetails?.[holeIndex];
+          const pPutts = (playerHoleDetails && typeof playerHoleDetails.putts === 'number')
+            ? playerHoleDetails.putts
+            : (typeof hole.putts === 'number' ? hole.putts : 0);
+          putts[player.playerId][hole.holeNumber] = pPutts;
         }
       });
     });
@@ -454,7 +460,7 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({
         </Button>
         
         <div className="text-center">
-          <div className="text-2xl font-bold">Hole {currentHoleData?.holeNumber ?? (currentHole + 1)}</div>
+          <div className={cn(isMobile ? "text-xl" : "text-2xl", "font-bold")}>Hole {currentHoleData?.holeNumber ?? (currentHole + 1)}</div>
           <div className="text-sm text-purple-200">Par {currentHoleData?.par || course?.holes?.[currentHole + 1] || 4}</div>
           <div className="text-xs text-purple-300">
             {(() => {
@@ -496,7 +502,7 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({
 
       {/* Player selector */}
       <div className="flex justify-center px-4 py-2 bg-black/10">
-        <div className="flex space-x-4">
+        <div className={cn("flex", isMobile ? "space-x-2" : "space-x-4")}>
           {round.players.map((p, index) => {
             const currentSnakeHolder = getCurrentSnakeHolder();
             const hasSnake = currentSnakeHolder === p.playerId;
@@ -518,7 +524,8 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({
               >
                 <div className="relative">
                   <Avatar className={cn(
-                    "h-12 w-12 border-2 transition-all",
+                    isMobile ? "h-10 w-10" : "h-12 w-12",
+                    "border-2 transition-all",
                     currentPlayer === index 
                       ? "border-yellow-400 shadow-lg shadow-yellow-400/25" 
                       : "border-purple-300"
@@ -546,8 +553,11 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({
           })}
           
           <button className="flex flex-col items-center space-y-1 opacity-60 hover:opacity-80">
-            <div className="h-12 w-12 border-2 border-dashed border-purple-300 rounded-full flex items-center justify-center">
-              <Plus className="h-6 w-6 text-purple-300" />
+            <div className={cn(
+              "border-2 border-dashed border-purple-300 rounded-full flex items-center justify-center",
+              isMobile ? "h-10 w-10" : "h-12 w-12"
+            )}>
+              <Plus className={cn(isMobile ? "h-5 w-5" : "h-6 w-6", "text-purple-300")} />
             </div>
             <div className="text-xs text-purple-300">Add Player</div>
           </button>
@@ -556,7 +566,7 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({
 
 
       {/* Main scoring area */}
-      <div className="flex-1 p-4">
+      <div className={cn("flex-1", isMobile ? "p-2" : "p-4")}>
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'score' | 'others')} className="w-full">
           <TabsList className="grid w-full grid-cols-2 mb-6 bg-black/20 border-purple-400/20">
             <TabsTrigger 
@@ -576,7 +586,7 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({
           <TabsContent value="score" className="space-y-6">
             {/* Score buttons */}
             <div className="space-y-4">
-              <div className="grid grid-cols-3 gap-3">
+              <div className={cn("grid gap-3", isMobile ? "grid-cols-4" : "grid-cols-3")}>
                 {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((score) => {
                   const isPar = score === (currentHoleData?.par || course?.holes?.[currentHole + 1] || 4);
                   const currentScore = player?.scores[currentHole];
@@ -1092,22 +1102,23 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({
       {/* Bottom navigation */}
       <div className="p-4 bg-black/20 space-y-3">
         <div className="flex items-center justify-between p-3 bg-yellow-500 text-black rounded-lg font-medium">
-          <div className="flex items-center space-x-3">
-            <span>Hole {currentHole + 1} of {round.holes.length}</span>
+          <div className="flex items-center space-x-3 min-w-0">
+            <span className="text-sm font-semibold truncate">Hole {currentHole + 1} of {round.holes.length}</span>
             <span className="text-yellow-800">•</span>
-            <span>{player.name}</span>
+            <span className="text-sm truncate">{player.name}</span>
           </div>
-          
+
           <div className="flex items-center space-x-2">
             <Button
               onClick={prevHole}
               disabled={currentHole === 0}
               variant="outline"
-              className="border-yellow-700 text-yellow-900 hover:bg-yellow-600"
+              className="border-yellow-700 text-yellow-900 hover:bg-yellow-600 w-9 h-9 p-0 flex items-center justify-center"
+              aria-label="Previous hole"
             >
-              <ChevronLeft className="h-4 w-4 mr-1" />
-              Previous
+              <ChevronLeft className="h-4 w-4" />
             </Button>
+
             <Button
               onClick={() => {
                 if (currentHole === round.holes.length - 1) {
@@ -1117,10 +1128,10 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({
                 }
               }}
               disabled={currentHole === round.holes.length - 1 && currentPlayerStats.holesPlayed < round.holes.length}
-              className="bg-yellow-600 hover:bg-yellow-700 text-black"
+              className="bg-yellow-600 hover:bg-yellow-700 text-black px-3 py-2 rounded-md flex items-center space-x-2"
             >
-              {currentHole === round.holes.length - 1 ? 'Finish Round' : 'Next Hole'}
-              <ChevronRight className="h-4 w-4 ml-1" />
+              <span className="text-sm font-medium">{currentHole === round.holes.length - 1 ? 'Finish' : 'Next'}</span>
+              <ChevronRight className="h-4 w-4 ml-0 flex-shrink-0" />
             </Button>
           </div>
         </div>

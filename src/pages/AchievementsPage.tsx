@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BadgeService } from '@/lib/golf/badgeSystem';
 import { BadgeDefinition, BadgeAward } from '@/lib/golf/types';
+import MobileContainer from '@/components/MobileContainer';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge as BadgeUI } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -84,7 +85,8 @@ export const AchievementsPage: React.FC = () => {
   return (
     <Layout>
       <div className="min-h-screen bg-gradient-to-br from-yellow-50 to-purple-50 dark:from-gray-900 dark:to-gray-800 py-8">
-        <div className="container mx-auto px-4">
+        <MobileContainer>
+          <div>
         <div className="max-w-6xl mx-auto">
           {/* Header */}
           <div className="text-center mb-8">
@@ -254,10 +256,11 @@ export const AchievementsPage: React.FC = () => {
               Share Achievement Progress
             </Button>
           </div>
+          </div>
         </div>
-      </div>
+      </MobileContainer>
     </div>
-    </Layout>
+  </Layout>
   );
 };
 

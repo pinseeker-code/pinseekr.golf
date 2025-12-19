@@ -153,7 +153,7 @@ export function useAddGolfCourse() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (course: Omit<GolfCourse, 'id' | 'author' | 'createdAt' | 'totalPar'> & { existingId?: string; tees?: { name: string; yardage: number }[]; yardages?: { [hole: number]: number } }) => {
+    mutationFn: async (course: Omit<GolfCourse, 'id' | 'author' | 'createdAt' | 'totalPar'> & { existingId?: string; tees?: { name: string; yardage: number }[]; yardages?: { [hole: number]: number }; scorecardImages?: string[] }) => {
       // Use existing ID if editing, otherwise generate a new one
       const courseId = course.existingId || `${course.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${Date.now()}`;
       
@@ -203,6 +203,13 @@ export function useAddGolfCourse() {
         }
       }
 
+      // Add scorecard image URLs as tags for easy discovery
+      if ((course as unknown as { scorecardImages?: string[] }).scorecardImages) {
+        for (const url of (course as unknown as { scorecardImages?: string[] }).scorecardImages || []) {
+          if (url) tags.push(['scorecard-image', url]);
+        }
+      }
+
         const payload = {
         id: courseId,
         name: course.name,
@@ -211,6 +218,7 @@ export function useAddGolfCourse() {
         yardages: (course as unknown as { yardages?: { [hole: number]: number } }).yardages || undefined,
         sections: course.sections || undefined,
         tees: course.tees || undefined,
+          scorecardImages: (course as unknown as { scorecardImages?: string[] }).scorecardImages || undefined,
         totalPar: Object.values(course.holes).reduce((s, n) => s + (Number(n) || 0), 0),
         createdAt: Date.now(),
       };

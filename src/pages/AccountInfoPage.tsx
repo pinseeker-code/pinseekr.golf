@@ -9,6 +9,7 @@ import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useToast } from '@/hooks/useToast';
 import { getEmailUserExportData } from '@/lib/emailAuthService';
 import { EditProfileForm } from '@/components/EditProfileForm';
+import MobileContainer from '@/components/MobileContainer';
 import { nip19 } from 'nostr-tools';
 import { useNavigate } from 'react-router-dom';
 
@@ -23,13 +24,13 @@ export function AccountInfoPage() {
 
   if (!user) {
     return (
-      <div className="container mx-auto px-4 py-8">
+      <MobileContainer className="py-8">
         <Card>
           <CardContent className="py-12 text-center">
             <p className="text-muted-foreground">Please log in to view your account information.</p>
           </CardContent>
         </Card>
-      </div>
+      </MobileContainer>
     );
   }
 
@@ -103,7 +104,8 @@ export function AccountInfoPage() {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl space-y-6">
+    <MobileContainer className="py-8">
+      <div className="space-y-6">
       {/* Close Button */}
       <div className="flex justify-end">
         <Button
@@ -376,7 +378,8 @@ export function AccountInfoPage() {
         </Card>
       )}
     </div>
-  );
-};
+  </MobileContainer>
+);
+}
 
 export default AccountInfoPage;

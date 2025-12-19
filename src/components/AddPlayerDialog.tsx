@@ -9,11 +9,13 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Users, UserPlus, Search, Hash, Loader2, User, CheckCircle } from 'lucide-react';
 import { genUserName } from '@/lib/genUserName';
 import { PlayerInRound } from '@/lib/golf/types';
-import { useContacts } from '@/hooks/useContacts';
+import { useContacts, Contact } from '@/hooks/useContacts';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useAuthor } from '@/hooks/useAuthor';
 import { useToast } from '@/hooks/useToast';
 import { nip19 } from 'nostr-tools';
+import { useGolfProfile } from '@/hooks/useGolfProfile';
+import { useHandicapCalculation } from '@/hooks/useHandicapCalculation';
 
 interface AddPlayerDialogProps {
   open: boolean;
@@ -41,6 +43,46 @@ export const AddPlayerDialog: React.FC<AddPlayerDialogProps> = ({
   
   // Fetch profile data for the validated pubkey
   const { data: profileData } = useAuthor(validatedPubkey || '');
+  const { data: golfProfile } = useGolfProfile(validatedPubkey || '');
+  const { data: handicapResult } = useHandicapCalculation(validatedPubkey || '');
+
+  // Contact row component that fetches golf data
+  const ContactRow: React.FC<{ friend: Contact }> = ({ friend }) => {
+    const { data: friendGolfProfile } = useGolfProfile(friend.pubkey);
+    const { data: friendHandicapResult } = useHandicapCalculation(friend.pubkey);
+    
+    const handicap = friendGolfProfile?.handicap ?? friendHandicapResult?.index ?? 0;
+
+    return (
+      <div className="p-3 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <Avatar className="h-8 w-8">
+              <AvatarImage src={friend.picture || undefined} />
+              <AvatarFallback>{(friend.name || 'U').charAt(0).toUpperCase()}</AvatarFallback>
+            </Avatar>
+            <div>
+              <p className="font-medium">{friend.name || genUserName(friend.pubkey)}</p>
+              <p className="text-xs text-gray-500">{friend.pubkey.slice(0, 16)}...</p>
+              {friend.nip05 && (
+                <p className="text-xs text-blue-500">✓ {friend.nip05}</p>
+              )}
+              {handicap > 0 && (
+                <p className="text-xs text-gray-600">HCP: {handicap.toFixed(1)}</p>
+              )}
+            </div>
+          </div>
+          <Button
+            size="sm"
+            onClick={() => handleAddNostrPlayer({ ...friend, handicap })}
+            className="bg-purple-600 hover:bg-purple-700 text-white"
+          >
+            Add
+          </Button>
+        </div>
+      </div>
+    );
+  };
 
   // Validate npub input and extract pubkey
   useEffect(() => {
@@ -112,11 +154,14 @@ export const AddPlayerDialog: React.FC<AddPlayerDialogProps> = ({
     onOpenChange(false);
   };
 
-  const handleAddNostrPlayer = (friend: { pubkey: string; name?: string; picture?: string }) => {
+  const handleAddNostrPlayer = (friend: { pubkey: string; name?: string; picture?: string; handicap?: number }) => {
+    // Use known handicap from friend data, or default to 0
+    const handicap = friend.handicap ?? 0;
+    
     const newPlayer: PlayerInRound = {
       playerId: friend.pubkey,
       name: friend.name || genUserName(friend.pubkey),
-      handicap: 0,
+      handicap,
       scores: [],
       total: 0,
       netTotal: 0
@@ -134,10 +179,13 @@ export const AddPlayerDialog: React.FC<AddPlayerDialogProps> = ({
                        profileData?.metadata?.display_name || 
                        genUserName(validatedPubkey);
 
+    // Get handicap from profile or calculation, default to 0
+    const handicap = golfProfile?.handicap ?? handicapResult?.index ?? 0;
+
     const newPlayer: PlayerInRound = {
       playerId: validatedPubkey,
       name: displayName,
-      handicap: 0,
+      handicap,
       scores: [],
       total: 0,
       netTotal: 0
@@ -236,30 +284,7 @@ export const AddPlayerDialog: React.FC<AddPlayerDialogProps> = ({
                 </div>
               ) : filteredFriends.length > 0 ? (
                 filteredFriends.map((friend) => (
-                  <div key={friend.pubkey} className="p-3 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <Avatar className="h-8 w-8">
-                          <AvatarImage src={friend.picture || undefined} />
-                          <AvatarFallback>{(friend.name || 'U').charAt(0).toUpperCase()}</AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="font-medium">{friend.name || genUserName(friend.pubkey)}</p>
-                          <p className="text-xs text-gray-500">{friend.pubkey.slice(0, 16)}...</p>
-                          {friend.nip05 && (
-                            <p className="text-xs text-blue-500">✓ {friend.nip05}</p>
-                          )}
-                        </div>
-                      </div>
-                      <Button
-                        size="sm"
-                        onClick={() => handleAddNostrPlayer(friend)}
-                        className="bg-purple-600 hover:bg-purple-700 text-white"
-                      >
-                        Add
-                      </Button>
-                    </div>
-                  </div>
+                  <ContactRow key={friend.pubkey} friend={friend} />
                 ))
               ) : (
                 <div className="text-center py-8 text-gray-500">

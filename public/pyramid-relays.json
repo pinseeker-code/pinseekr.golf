@@ -11,10 +11,12 @@
       "description": "Pinseekr Golf Relay (Grain)"
     },
     {
-      "name": "Local Grain (Umbrel)",
-      "url": "ws://100.94.28.97:8181",
-      "read": true,
-      "write": true
+      "url": "wss://relay.nostr.band",
+      "role": "fallback",
+      "readable": true,
+      "writable": true,
+      "priority": 2,
+      "description": "Nostr.Band - Discovery & Backup"
     }
   ]
 }

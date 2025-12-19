@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,9 +7,11 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
-import { Save, User, Home, Settings } from 'lucide-react';
+import { Save, User, Home, Settings, Calculator, RefreshCw } from 'lucide-react';
 import { useGolfProfileMutation } from '@/hooks/useGolfProfile';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { useHandicapCalculation } from '@/hooks/useHandicapCalculation';
+import { HandicapInfoDialog } from '@/components/golf/HandicapInfoDialog';
 import type { GolfProfile } from '@/lib/golf/social';
 
 interface EditGolfProfileProps {
@@ -21,6 +23,7 @@ interface EditGolfProfileProps {
 export function EditGolfProfile({ profile, onSave, className }: EditGolfProfileProps) {
   const { user } = useCurrentUser();
   const { createProfile, updateProfile } = useGolfProfileMutation();
+  const { data: handicapResult, isLoading: isCalculatingHandicap, refetch: recalculateHandicap } = useHandicapCalculation(user?.pubkey);
   
   const [formData, setFormData] = useState({
     name: profile?.name || '',
@@ -150,17 +153,57 @@ export function EditGolfProfile({ profile, onSave, className }: EditGolfProfileP
             </div>
             
             <div>
-              <Label htmlFor="handicap">Handicap Index</Label>
-              <Input
-                id="handicap"
-                type="number"
-                step="0.1"
-                min="-5"
-                max="54"
-                value={formData.handicap}
-                onChange={(e) => handleInputChange('handicap', parseFloat(e.target.value) || 0)}
-                placeholder="0.0"
-              />
+              <Label htmlFor="handicap" className="flex items-center gap-2">
+                Handicap Index
+                <HandicapInfoDialog handicapResult={handicapResult} />
+              </Label>
+              <div className="flex gap-2">
+                <Input
+                  id="handicap"
+                  type="number"
+                  step="0.1"
+                  min="-5"
+                  max="54"
+                  value={formData.handicap}
+                  onChange={(e) => handleInputChange('handicap', parseFloat(e.target.value) || 0)}
+                  placeholder="0.0"
+                  className="flex-1"
+                />
+                {handicapResult && handicapResult.index !== null && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleInputChange('handicap', handicapResult.index!)}
+                    className="whitespace-nowrap"
+                    title="Use calculated handicap"
+                  >
+                    <Calculator className="h-4 w-4 mr-1" />
+                    Use {handicapResult.index.toFixed(1)}
+                  </Button>
+                )}
+              </div>
+              {/* Handicap calculation status */}
+              <div className="mt-2 text-xs text-muted-foreground">
+                {isCalculatingHandicap ? (
+                  <span className="flex items-center gap-1">
+                    <RefreshCw className="h-3 w-3 animate-spin" />
+                    Calculating from your rounds...
+                  </span>
+                ) : handicapResult ? (
+                  handicapResult.method === 'insufficient' ? (
+                    <span>
+                      Enter manually or play {handicapResult.minimumRoundsNeeded} more rounds to auto-calculate.
+                    </span>
+                  ) : (
+                    <span>
+                      Calculated: <strong>{handicapResult.index?.toFixed(1)}</strong> ({handicapResult.roundsUsed} of {handicapResult.roundsAvailable} rounds used)
+                    </span>
+                  )
+                ) : (
+                  <span>Enter your handicap index manually</span>
+                )}
+              </div>
             </div>
           </div>
 

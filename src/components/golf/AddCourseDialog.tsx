@@ -54,6 +54,7 @@ export function AddCourseDialog({ open, onOpenChange, onCourseAdded, existingCou
   
   // State for par selection popup
   const [parPopoverOpen, setParPopoverOpen] = useState<{sectionIndex: number, hole: number} | null>(null);
+  const [popoverCloseSuppress, setPopoverCloseSuppress] = useState<number>(0);
   
   // State for drag mode to show visual zones
   const [isDragging, setIsDragging] = useState<{sectionIndex: number, hole: number} | null>(null);
@@ -416,15 +417,21 @@ export function AddCourseDialog({ open, onOpenChange, onCourseAdded, existingCou
                       className="flex-1"
                     />
                     <Input
-                      type="number"
+                      type="tel"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       placeholder="Yards"
                       value={t?.yardage || ''}
+                      onFocus={(e) => (e.target as HTMLInputElement).select()}
+                      onContextMenu={(e) => e.preventDefault()}
+                      translate="no"
+                      style={{ WebkitTouchCallout: 'none' }}
                       onChange={(e) => {
                         const newT = [...(tees || [])];
                         newT[idx] = { ...newT[idx], yardage: parseInt(e.target.value) || 0 };
                         setValue('tees', newT);
                       }}
-                      className="w-full sm:w-28"
+                      className="w-full sm:w-28 h-10 sm:h-auto"
                     />
                     <Button type="button" variant="outline" size="sm" onClick={() => {
                       const newT = (tees || []).filter((_, i) => i !== idx);
@@ -636,7 +643,11 @@ export function AddCourseDialog({ open, onOpenChange, onCourseAdded, existingCou
                             <Popover 
                               open={parPopoverOpen?.sectionIndex === sectionIndex && parPopoverOpen?.hole === hole}
                               onOpenChange={(open) => {
-                                if (!open) setParPopoverOpen(null);
+                                if (!open) {
+                                  // Ignore close requests during suppression window (mobile focus quirks)
+                                  if (Date.now() < popoverCloseSuppress) return;
+                                  setParPopoverOpen(null);
+                                }
                               }}
                             >
                               <PopoverTrigger asChild>
@@ -645,6 +656,13 @@ export function AddCourseDialog({ open, onOpenChange, onCourseAdded, existingCou
                                     isDragging?.sectionIndex === sectionIndex && isDragging?.hole === hole 
                                       ? 'bg-accent/50' : ''
                                   }`}
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    // Open popover and suppress auto-close for 500ms
+                                    setParPopoverOpen({ sectionIndex, hole });
+                                    setPopoverCloseSuppress(Date.now() + 500);
+                                  }}
                                   onWheel={(e) => {
                                     e.preventDefault();
                                     const direction = e.deltaY > 0 ? 1 : -1;
@@ -697,7 +715,7 @@ export function AddCourseDialog({ open, onOpenChange, onCourseAdded, existingCou
                                       setIsDragging(null);
                                       
                                       if (!hasMoved) {
-                                        setParPopoverOpen({ sectionIndex, hole });
+                                        // Handled by onClick for better mobile support
                                       }
                                     };
                                     
@@ -721,9 +739,8 @@ export function AddCourseDialog({ open, onOpenChange, onCourseAdded, existingCou
                                       if (Math.abs(deltaY) > 10) {
                                         const direction = deltaY > 0 ? 1 : -1;
                                         cycleHolePar(sectionIndex, hole, direction);
-                                      } else if (Math.abs(deltaY) < 5) {
-                                        setParPopoverOpen({ sectionIndex, hole });
                                       }
+                                      // else: tap handled by onClick
                                     }
                                   }}
                                   title="Click for menu, scroll to cycle, or drag: top=5, middle=4, bottom=3"
@@ -747,7 +764,17 @@ export function AddCourseDialog({ open, onOpenChange, onCourseAdded, existingCou
                                   )}
                                 </div>
                               </PopoverTrigger>
-                              <PopoverContent className="w-auto p-2" side="top" align="center">
+                              <PopoverContent 
+                                className="w-auto p-2" 
+                                side="top" 
+                                align="center"
+                                onOpenAutoFocus={(e) => e.preventDefault?.()}
+                                onInteractOutside={() => {
+                                  // Ignore close during suppression window
+                                  if (Date.now() < popoverCloseSuppress) return;
+                                  setParPopoverOpen(null);
+                                }}
+                              >
                                 <div className="flex flex-col gap-1">
                                   <div className="text-xs text-muted-foreground text-center mb-1">
                                     Par for Hole {hole}
@@ -777,12 +804,18 @@ export function AddCourseDialog({ open, onOpenChange, onCourseAdded, existingCou
                           <div className="flex flex-col items-center">
                             <Label className="text-[10px] sm:text-xs text-muted-foreground">Yds</Label>
                             <Input
-                              type="number"
+                              type="tel"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
                               min="0"
                               value={(section.yardages && section.yardages[hole]) || ''}
+                              onFocus={(e) => (e.target as HTMLInputElement).select()}
+                              onContextMenu={(e) => e.preventDefault()}
+                              translate="no"
+                              style={{ WebkitTouchCallout: 'none' }}
                               onChange={(e) => updateHoleYardage(sectionIndex, hole, parseInt(e.target.value) || 0)}
                               placeholder="0"
-                              className="w-10 sm:w-12 h-7 text-xs text-center px-0.5 sm:px-1 py-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              className="w-10 sm:w-12 h-10 sm:h-7 text-xs text-center px-0.5 sm:px-1 py-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             />
                           </div>
                           
@@ -790,15 +823,21 @@ export function AddCourseDialog({ open, onOpenChange, onCourseAdded, existingCou
                           <div className="flex flex-col items-center">
                             <Label className="text-[10px] sm:text-xs text-muted-foreground">HC</Label>
                             <Input
-                              type="number"
+                              type="tel"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
                               min="1"
                               max={totalHoles}
                               value={(section.handicaps && section.handicaps[hole]) || (sectionIndex * 9 + hole)}
+                              onFocus={(e) => (e.target as HTMLInputElement).select()}
+                              onContextMenu={(e) => e.preventDefault()}
+                              translate="no"
+                              style={{ WebkitTouchCallout: 'none' }}
                               onChange={(e) => {
                                 const value = parseInt(e.target.value) || (sectionIndex * 9 + hole);
                                 updateHoleHandicap(sectionIndex, hole, Math.max(1, Math.min(totalHoles, value)));
                               }}
-                              className="w-9 sm:w-10 h-7 text-xs text-center px-0.5 sm:px-1 py-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              className="w-9 sm:w-10 h-10 sm:h-7 text-xs text-center px-0.5 sm:px-1 py-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             />
                           </div>
                         </div>

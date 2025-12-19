@@ -22,6 +22,11 @@ export function createRoundEvent(round: GolfRound, roundCode?: string): NostrEve
   // Format: "join-CODE" when sharing, or the round.id otherwise
   const dTagValue = roundCode ? `join-${roundCode}` : round.id;
 
+  // Build scorecard image tags
+  const scorecardImageTags = (round.metadata.scorecardImages || [])
+    .filter(Boolean)
+    .map(url => ['scorecard-image', url]);
+
   return {
     kind: GOLF_KINDS.ROUND,
     pubkey: round.players[0]?.playerId || '', // First player as creator
@@ -37,10 +42,14 @@ export function createRoundEvent(round: GolfRound, roundCode?: string): NostrEve
       ['players', ...playerPubkeys],
       ['game-mode', round.gameMode],
       ['status', round.status],
+      ['holes', String(round.holes.length || 18)],
       ...(round.metadata.courseLocation ? [['location', round.metadata.courseLocation]] : []),
       ...(round.metadata.teeBox ? [['tee-box', round.metadata.teeBox]] : []),
       ...(typeof round.metadata.teeYardage !== 'undefined' ? [['tee-yardage', String(round.metadata.teeYardage)]] : []),
       ...(round.metadata.weather ? [['weather', round.metadata.weather]] : []),
+      ...(round.metadata.origin ? [['origin', round.metadata.origin]] : []),
+      ...(round.metadata.visibility ? [['visibility', round.metadata.visibility]] : []),
+      ...scorecardImageTags,
     ],
     content: round.metadata.notes || '',
   };

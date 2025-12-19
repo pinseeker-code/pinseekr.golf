@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { LoginArea } from '@/components/auth/LoginArea';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
-import { Users, Zap, Trophy, BarChart3 } from 'lucide-react';
+import { Users, Zap, Trophy, BarChart3, User, Code } from 'lucide-react';
 
 const Index = () => {
   const { user } = useCurrentUser();
@@ -217,7 +217,7 @@ const Index = () => {
             <div className="grid md:grid-cols-3 gap-6">
               <div className="text-center">
                 <div className="h-16 w-16 rounded-full flex items-center justify-center mx-auto mb-4" style={{ backgroundColor: '#8B00FF' }}>
-                  <span className="text-white font-bold text-2xl">�</span>
+                  <User className="h-8 w-8 text-white" />
                 </div>
                 <h3 className="font-semibold mb-2">Digital Identity</h3>
                 <p className="text-gray-600 dark:text-gray-400 text-sm">
@@ -235,7 +235,7 @@ const Index = () => {
               </div>
               <div className="text-center">
                 <div className="h-16 w-16 rounded-full flex items-center justify-center mx-auto mb-4" style={{ backgroundColor: '#333333' }}>
-                  <span className="text-white font-bold text-2xl">�</span>
+                  <Code className="h-8 w-8 text-white" />
                 </div>
                 <h3 className="font-semibold mb-2">Open Source</h3>
                 <p className="text-gray-600 dark:text-gray-400 text-sm">

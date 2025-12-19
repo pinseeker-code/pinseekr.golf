@@ -20,19 +20,29 @@ export enum BadgeCategory {
   MILESTONES = 'milestones'
 }
 
-// Custom Nostr Event Kinds for Golf
+// Custom Nostr Event Kinds for Golf (v2 - streamlined)
 export const GOLF_KINDS = {
-  ROUND: 36901,           // Golf round metadata
-  HOLE: 36902,            // Individual hole scores
-  PLAYER: 36903,          // Player profile in round
-  GAME: 36904,           // Game mode configuration
-  RESULT: 36905,         // Final round results
-  BADGE_AWARD: 36906,    // Badge achievement awards
-  TOURNAMENT: 36907,     // Tournament events
-  COURSE: 36908,         // Golf course metadata
-  // Additional project kinds
-  PLAYER_SCORE: 36909,   // per-player score updates (addressable)
-  INVITE_ACCEPT: 36910,  // player invite accept proof
+  // Core event types (clean sequence)
+  ROUND: 36901,           // Round container (who, where, when, scorecard images)
+  COURSE: 36902,          // Course definition (holes, pars, yardages)
+  PLAYER_SCORE: 36903,    // Per-player scores for a round (addressable, updates in place)
+  GOLF_PROFILE: 36904,    // User's handicap, preferences, visibility
+  TOURNAMENT: 36905,      // Multi-round competition container
+  
+  // Legacy kinds (for backward compatibility reading only)
+  /** @deprecated Use PLAYER_SCORE instead */
+  HOLE: 36802,            // Individual hole scores (deprecated)
+  /** @deprecated Info now in ROUND + PLAYER_SCORE */
+  PLAYER: 36803,          // Player profile in round (deprecated)
+  /** @deprecated Merged into ROUND tags */
+  GAME: 36804,            // Game mode configuration (deprecated)
+  /** @deprecated Use ROUND status tag */
+  RESULT: 36805,          // Final round results (deprecated)
+  /** @deprecated */
+  INVITE_ACCEPT: 36806,   // player invite accept proof (deprecated)
+  
+  // Optional features
+  BADGE_AWARD: 36910,     // Badge achievement awards
 } as const;
 
 // Player in a round
@@ -94,6 +104,9 @@ export interface RoundMetadata {
   weather?: string;
   notes?: string;
   selectedSection?: string; // Selected 9-hole section index
+  scorecardImages?: string[]; // Blossom URLs of uploaded scorecard photos
+  origin?: 'real' | 'simulator'; // Where the round was played
+  visibility?: 'public' | 'social' | 'private'; // Discoverability
 }
 
 // Badge definition

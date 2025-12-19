@@ -1657,8 +1657,8 @@ export const NewRoundPage: React.FC = () => {
                                     )}
                                   </div>
                                 </div>
-                                <div className="col-span-4">
-                                  <Label htmlFor={`handicap-${player.playerId}`}>Handicap</Label>
+                                <div className="col-span-3">
+                                  <Label htmlFor={`handicap-${player.playerId}`}>HCP</Label>
                                   <Input
                                     id={`handicap-${player.playerId}`}
                                     type="number"
@@ -1669,9 +1669,10 @@ export const NewRoundPage: React.FC = () => {
                                       const value = e.target.value === '' ? 0 : parseInt(e.target.value);
                                       updatePlayer(index, 'handicap', isNaN(value) ? 0 : value);
                                     }}
+                                    className="text-center"
                                   />
                                 </div>
-                                <div className="col-span-1 flex justify-end">
+                                <div className="col-span-2 flex justify-end">
                                   <Button
                                     variant="ghost"
                                     size="icon"
@@ -1883,14 +1884,14 @@ export const NewRoundPage: React.FC = () => {
                           </div>
                           {fallbackPlayerInput && (
                             <div className="col-span-3">
-                              <Label htmlFor="quick-handicap">Handicap</Label>
+                              <Label htmlFor="quick-handicap">HCP</Label>
                               <Input
                                 id="quick-handicap"
                                 type="number"
                                 min="0"
                                 max="54"
                                 defaultValue={0}
-                                className="border-blue-300 focus:border-blue-500"
+                                className="text-center border-blue-300 focus:border-blue-500"
                               />
                             </div>
                           )}
@@ -2647,7 +2648,7 @@ export const NewRoundPage: React.FC = () => {
                               >
                                 <div className="flex items-center gap-3 mb-3">
                                   <div className="w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-900 flex items-center justify-center">
-                                    <span className="text-amber-600 dark:text-amber-400 font-bold">⚡</span>
+                                    <span className="text-amber-600 dark:text-amber-400 font-bold">✓</span>
                                   </div>
                                   <h3 className="font-semibold text-lg">Nassau</h3>
                                 </div>
@@ -2674,7 +2675,7 @@ export const NewRoundPage: React.FC = () => {
                               >
                                 <div className="flex items-center gap-3 mb-3">
                                   <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center">
-                                    <span className="text-indigo-600 dark:text-indigo-400 font-bold">⭕</span>
+                                    <span className="text-indigo-600 dark:text-indigo-400 font-bold">★</span>
                                   </div>
                                   <h3 className="font-semibold text-lg">Stableford</h3>
                                 </div>
@@ -2762,7 +2763,7 @@ export const NewRoundPage: React.FC = () => {
                               >
                                 <div className="flex items-center gap-3 mb-3">
                                   <div className="w-8 h-8 rounded-full bg-pink-100 dark:bg-pink-900 flex items-center justify-center">
-                                    <span className="text-pink-600 dark:text-pink-400 font-bold">⚡</span>
+                                    <span className="text-pink-600 dark:text-pink-400 font-bold">🎲</span>
                                   </div>
                                   <h3 className="font-semibold text-lg">Vegas</h3>
                                 </div>

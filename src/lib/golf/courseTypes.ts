@@ -171,8 +171,9 @@ export interface TeeTimeSlot {
 }
 
 // Nostr Event Kinds for Course Database
+// Note: COURSE kind is defined in types.ts as GOLF_KINDS.COURSE (36902)
 export const COURSE_KINDS = {
-  COURSE: 36908,        // Golf course information (migrated to 369xx block)
+  COURSE: 36902,        // Golf course information (now 36902 in v2 schema)
   COURSE_REVIEW: 30101, // Course reviews
   TEE_TIME: 30102,      // Tee time availability
   COURSE_UPDATE: 30103, // Course condition updates

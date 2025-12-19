@@ -4,9 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
-import { Copy, Download, Eye, EyeOff, Mail, Key, Shield, ExternalLink, Info, Sparkles, X } from 'lucide-react';
+import { Copy, Download, Eye, EyeOff, Mail, Key, Shield, ExternalLink, Info, Sparkles, X, Calculator } from 'lucide-react';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useToast } from '@/hooks/useToast';
+import { useHandicapCalculation } from '@/hooks/useHandicapCalculation';
+import { HandicapInfoDialog } from '@/components/golf/HandicapInfoDialog';
 import { getEmailUserExportData } from '@/lib/emailAuthService';
 import { EditProfileForm } from '@/components/EditProfileForm';
 import MobileContainer from '@/components/MobileContainer';
@@ -17,6 +19,7 @@ export function AccountInfoPage() {
   const { user, isEmailUser, emailUserData } = useCurrentUser();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { data: handicapResult } = useHandicapCalculation(user?.pubkey);
   const [showKeys, setShowKeys] = useState(false);
   const [exportPassword, setExportPassword] = useState('');
   const [showExportForm, setShowExportForm] = useState(false);

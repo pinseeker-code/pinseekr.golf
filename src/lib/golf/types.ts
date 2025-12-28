@@ -60,13 +60,21 @@ export interface PlayerInRound {
   holeDetails?: Record<number, {
     putts?: number;
     fairways?: boolean;
+    fairwayMissDepth?: MissDepth;
+    fairwayMissSide?: MissSide;
     greens?: boolean;
+    greenMissDepth?: MissDepth;
+    greenMissSide?: MissSide;
     chips?: number;
     sandTraps?: number;
     penalties?: number;
     notes?: string;
   }>;
 }
+
+// Miss direction types
+export type MissDepth = 'long' | 'short' | null;
+export type MissSide = 'left' | 'right' | null;
 
 // Individual hole score
 export interface HoleScore {
@@ -75,7 +83,11 @@ export interface HoleScore {
   strokes: number;
   putts: number;
   fairways: boolean;
+  fairwayMissDepth?: MissDepth;
+  fairwayMissSide?: MissSide;
   greens: boolean;
+  greenMissDepth?: MissDepth;
+  greenMissSide?: MissSide;
   chips: number;
   sandTraps: number;
   penalties: number;

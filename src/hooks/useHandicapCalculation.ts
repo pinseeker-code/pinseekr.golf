@@ -91,7 +91,6 @@ export function useHandicapCalculation(userPubkey: string | undefined) {
           if (gross < 40) continue; // Invalid score
 
           // Try to find course info from the round
-          const roundTag = event.tags?.find(t => t[0] === 'round')?.[1];
           let courseRating = DEFAULT_COURSE_RATING;
           let slope = DEFAULT_SLOPE;
           let courseName = 'Unknown Course';

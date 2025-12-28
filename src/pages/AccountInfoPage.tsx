@@ -4,11 +4,12 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
-import { Copy, Download, Eye, EyeOff, Mail, Key, Shield, ExternalLink, Info, Sparkles, X, Calculator } from 'lucide-react';
+import { Copy, Download, Eye, EyeOff, Mail, Key, Shield, ExternalLink, Info, Sparkles, X } from 'lucide-react';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
+import RelayStatus from '@/components/RelayStatus';
 import { useToast } from '@/hooks/useToast';
 import { useHandicapCalculation } from '@/hooks/useHandicapCalculation';
-import { HandicapInfoDialog } from '@/components/golf/HandicapInfoDialog';
+import { HandicapInfoDialog as _HandicapInfoDialog } from '@/components/golf/HandicapInfoDialog';
 import { getEmailUserExportData } from '@/lib/emailAuthService';
 import { EditProfileForm } from '@/components/EditProfileForm';
 import MobileContainer from '@/components/MobileContainer';
@@ -19,7 +20,7 @@ export function AccountInfoPage() {
   const { user, isEmailUser, emailUserData } = useCurrentUser();
   const { toast } = useToast();
   const navigate = useNavigate();
-  const { data: handicapResult } = useHandicapCalculation(user?.pubkey);
+  const { data: _handicapResult } = useHandicapCalculation(user?.pubkey);
   const [showKeys, setShowKeys] = useState(false);
   const [exportPassword, setExportPassword] = useState('');
   const [showExportForm, setShowExportForm] = useState(false);
@@ -149,7 +150,7 @@ export function AccountInfoPage() {
               </div>
             </div>
           )}
-          
+
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium">Public Key (npub):</span>
@@ -208,9 +209,9 @@ export function AccountInfoPage() {
                   <h4 className="font-medium">Portable Across Apps</h4>
                   <p className="text-sm text-muted-foreground">
                     Use the same identity on any Nostr{' '}
-                    <a 
-                      href="https://nostrapps.com/" 
-                      target="_blank" 
+                    <a
+                      href="https://nostrapps.com/"
+                      target="_blank"
                       rel="noopener noreferrer"
                       className="text-blue-600 hover:text-blue-800 underline"
                     >
@@ -233,6 +234,8 @@ export function AccountInfoPage() {
           </CardContent>
         </Card>
       )}
+
+      <RelayStatus />
 
       {/* Profile Management */}
       <Card>
@@ -357,7 +360,7 @@ export function AccountInfoPage() {
                     <Alert variant="destructive">
                       <Shield className="h-4 w-4" />
                       <AlertDescription>
-                        <strong>Keep your secret key private!</strong> Anyone with this key can control your Nostr identity. 
+                        <strong>Keep your secret key private!</strong> Anyone with this key can control your Nostr identity.
                         Store it securely and never share it publicly.
                       </AlertDescription>
                     </Alert>

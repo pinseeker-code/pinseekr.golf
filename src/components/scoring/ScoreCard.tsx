@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
-import { HoleScore, GolfRound, PlayerInRound } from '@/lib/golf/types';
+import { HoleScore, GolfRound, PlayerInRound, MissDepth, MissSide } from '@/lib/golf/types';
 import { useRoundPersistence } from '@/hooks/useRoundPersistence';
 import { Scoreboard } from './Scoreboard';
 import { 
@@ -46,6 +46,8 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({
   const [expandedSand, setExpandedSand] = useState(false);
   const [expandedPenalties, setExpandedPenalties] = useState(false);
   const [manualInput, setManualInput] = useState<{ field: string; value: string }>({ field: '', value: '' });
+  const [touchStart, setTouchStart] = useState<number | null>(null);
+  const [touchEnd, setTouchEnd] = useState<number | null>(null);
 
   const isMobile = useIsMobile();
 
@@ -80,8 +82,12 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({
     return {
       strokes: p.scores?.[holeIndex] ?? 0,
       putts: details.putts ?? hole.putts ?? 0,
-      fairways: typeof details.fairways === 'boolean' ? details.fairways : (hole.fairways ?? false),
-      greens: typeof details.greens === 'boolean' ? details.greens : (hole.greens ?? false),
+      fairways: details.fairways ?? null,
+      fairwayMissDepth: (details.fairwayMissDepth as MissDepth) ?? null,
+      fairwayMissSide: (details.fairwayMissSide as MissSide) ?? null,
+      greens: details.greens ?? null,
+      greenMissDepth: (details.greenMissDepth as MissDepth) ?? null,
+      greenMissSide: (details.greenMissSide as MissSide) ?? null,
       chips: details.chips ?? hole.chips ?? 0,
       sandTraps: details.sandTraps ?? hole.sandTraps ?? 0,
       penalties: details.penalties ?? hole.penalties ?? 0,
@@ -170,6 +176,15 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({
       setPlayerDisplayMode(prev => prev === 'total' ? 'strokes' : 'total');
     }, 6000);
     return () => clearInterval(id);
+  }, []);
+
+  // Ensure the page loads scrolled to top when this component mounts
+  React.useEffect(() => {
+    try {
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    } catch (e) {
+      // ignore in non-browser environments
+    }
   }, []);
 
   // Calculate current snake holder for Snake game mode
@@ -267,8 +282,8 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({
 
   const updateScore = (field: keyof HoleScore, value: unknown) => {
     const updatedRound = { ...round };
-    
-    // Ensure holes array exists
+
+    // Ensure holes array exists (metadata defaults only)
     if (!updatedRound.holes) {
       updatedRound.holes = Array.from({ length: 18 }, (_, i) => ({
         holeNumber: i + 1,
@@ -284,21 +299,13 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({
       }));
     }
 
-    // Update the specific hole data
-    if (updatedRound.holes[currentHole]) {
-      updatedRound.holes[currentHole] = {
-        ...updatedRound.holes[currentHole],
-        [field]: value
-      };
-    }
-
     // Update player scores array when strokes change
-      if (field === 'strokes' && typeof value === 'number') {
+    if (field === 'strokes' && typeof value === 'number') {
       updatedRound.players = updatedRound.players.map((p, index) => {
         if (index === currentPlayer) {
           const newScores = [...p.scores];
           newScores[currentHole] = value;
-          
+
           // Calculate totals using proper handicap allocation
           const { total, netTotal } = computePlayerTotals({ ...p, scores: newScores }, updatedRound);
 
@@ -319,6 +326,18 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({
           const holeDetails = { ...(p.holeDetails || {}) } as Record<number, Record<string, unknown>>;
           const hd = { ...(holeDetails[currentHole] || {}) } as Record<string, unknown>;
           hd[field as string] = value as unknown;
+
+          // When setting fairways to true (Hit), also clear miss direction fields
+          if (field === 'fairways' && value === true) {
+            hd['fairwayMissDepth'] = null;
+            hd['fairwayMissSide'] = null;
+          }
+          // When setting greens to true (Hit) or 'unreachable', also clear miss direction fields
+          if (field === 'greens' && (value === true || value === 'unreachable')) {
+            hd['greenMissDepth'] = null;
+            hd['greenMissSide'] = null;
+          }
+
           holeDetails[currentHole] = hd;
 
           return {
@@ -330,13 +349,12 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({
       });
     }
 
-    // Auto-save to localStorage
     // Recompute totals (gross/net) for all players after the update
     computeTotalsInRound(updatedRound);
 
     // Auto-save to localStorage
     persistRound(updatedRound);
-    
+
     onUpdateRound(updatedRound);
   };
 
@@ -445,8 +463,38 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({
     }
   };
 
+  // Swipe gesture handlers
+  const minSwipeDistance = 50;
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    setTouchEnd(null);
+    setTouchStart(e.targetTouches[0].clientX);
+  };
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    setTouchEnd(e.targetTouches[0].clientX);
+  };
+
+  const onTouchEnd = () => {
+    if (!touchStart || !touchEnd) return;
+    const distance = touchStart - touchEnd;
+    const isLeftSwipe = distance > minSwipeDistance;
+    const isRightSwipe = distance < -minSwipeDistance;
+    
+    if (isLeftSwipe) {
+      nextHole();
+    } else if (isRightSwipe) {
+      prevHole();
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-indigo-900 text-white">
+    <div 
+      className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-indigo-900 text-white"
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+    >
       {/* Header with hole info and navigation */}
       <div className="flex items-center justify-between p-4 bg-black/20">
         <Button
@@ -573,13 +621,13 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({
               value="score" 
               className="text-white data-[state=active]:bg-yellow-500 data-[state=active]:text-black"
             >
-              Score
+              Scoring
             </TabsTrigger>
             <TabsTrigger 
               value="others" 
               className="text-white data-[state=active]:bg-yellow-500 data-[state=active]:text-black"
             >
-              Others
+              Summary
             </TabsTrigger>
           </TabsList>
 
@@ -729,7 +777,7 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({
                   onClick={() => updateScore('fairways', true)}
                   className={cn(
                     "flex-1 h-12 flex items-center justify-center space-x-2",
-                    currentPlayerHole?.fairways ? 
+                    currentPlayerHole?.fairways === true ? 
                     "bg-green-500 hover:bg-green-400 text-white" :
                     "bg-white/10 hover:bg-white/20 text-white border border-purple-300"
                   )}
@@ -750,6 +798,59 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({
                   <span>Miss</span>
                 </Button>
               </div>
+              {/* Fairway Miss Direction Buttons */}
+              {currentPlayerHole?.fairways === false && (
+                <div className="space-y-2 pt-2">
+                  <div className="flex space-x-2">
+                    <Button
+                      onClick={() => updateScore('fairwayMissDepth', currentPlayerHole?.fairwayMissDepth === 'long' ? null : 'long')}
+                      className={cn(
+                        "flex-1 h-10 text-sm",
+                        currentPlayerHole?.fairwayMissDepth === 'long' ? 
+                        "bg-purple-500 text-white border-2 border-yellow-400" :
+                        "bg-white/10 hover:bg-white/20 text-white border border-purple-300"
+                      )}
+                    >
+                      Long
+                    </Button>
+                    <Button
+                      onClick={() => updateScore('fairwayMissDepth', currentPlayerHole?.fairwayMissDepth === 'short' ? null : 'short')}
+                      className={cn(
+                        "flex-1 h-10 text-sm",
+                        currentPlayerHole?.fairwayMissDepth === 'short' ? 
+                        "bg-purple-500 text-white border-2 border-yellow-400" :
+                        "bg-white/10 hover:bg-white/20 text-white border border-purple-300"
+                      )}
+                    >
+                      Short
+                    </Button>
+                  </div>
+                  <div className="flex space-x-2">
+                    <Button
+                      onClick={() => updateScore('fairwayMissSide', currentPlayerHole?.fairwayMissSide === 'left' ? null : 'left')}
+                      className={cn(
+                        "flex-1 h-10 text-sm",
+                        currentPlayerHole?.fairwayMissSide === 'left' ? 
+                        "bg-purple-500 text-white border-2 border-yellow-400" :
+                        "bg-white/10 hover:bg-white/20 text-white border border-purple-300"
+                      )}
+                    >
+                      Left
+                    </Button>
+                    <Button
+                      onClick={() => updateScore('fairwayMissSide', currentPlayerHole?.fairwayMissSide === 'right' ? null : 'right')}
+                      className={cn(
+                        "flex-1 h-10 text-sm",
+                        currentPlayerHole?.fairwayMissSide === 'right' ? 
+                        "bg-purple-500 text-white border-2 border-yellow-400" :
+                        "bg-white/10 hover:bg-white/20 text-white border border-purple-300"
+                      )}
+                    >
+                      Right
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Greens in Regulation */}
@@ -760,7 +861,7 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({
                   onClick={() => updateScore('greens', true)}
                   className={cn(
                     "flex-1 h-12 flex items-center justify-center space-x-2",
-                    currentPlayerHole?.greens ? 
+                    currentPlayerHole?.greens === true ? 
                     "bg-green-500 hover:bg-green-400 text-white" :
                     "bg-white/10 hover:bg-white/20 text-white border border-purple-300"
                   )}
@@ -772,7 +873,7 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({
                   onClick={() => updateScore('greens', false)}
                   className={cn(
                     "flex-1 h-12 flex items-center justify-center space-x-2",
-                    currentPlayerHole?.greens === false ? 
+                    (currentPlayerHole?.greens === false || currentPlayerHole?.greens === 'unreachable') ? 
                     "bg-red-500 hover:bg-red-400 text-white" :
                     "bg-white/10 hover:bg-white/20 text-white border border-purple-300"
                   )}
@@ -781,6 +882,73 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({
                   <span>Miss</span>
                 </Button>
               </div>
+              {/* Green Miss Direction Buttons */}
+              {currentPlayerHole?.greens === false && (
+                <div className="space-y-2 pt-2">
+                  <div className="flex space-x-2">
+                    <Button
+                      onClick={() => updateScore('greenMissDepth', currentPlayerHole?.greenMissDepth === 'long' ? null : 'long')}
+                      className={cn(
+                        "flex-1 h-10 text-sm",
+                        currentPlayerHole?.greenMissDepth === 'long' ? 
+                        "bg-purple-500 text-white border-2 border-yellow-400" :
+                        "bg-white/10 hover:bg-white/20 text-white border border-purple-300"
+                      )}
+                    >
+                      Long
+                    </Button>
+                    <Button
+                      onClick={() => updateScore('greenMissDepth', currentPlayerHole?.greenMissDepth === 'short' ? null : 'short')}
+                      className={cn(
+                        "flex-1 h-10 text-sm",
+                        currentPlayerHole?.greenMissDepth === 'short' ? 
+                        "bg-purple-500 text-white border-2 border-yellow-400" :
+                        "bg-white/10 hover:bg-white/20 text-white border border-purple-300"
+                      )}
+                    >
+                      Short
+                    </Button>
+                  </div>
+                  <div className="flex space-x-2">
+                    <Button
+                      onClick={() => updateScore('greenMissSide', currentPlayerHole?.greenMissSide === 'left' ? null : 'left')}
+                      className={cn(
+                        "flex-1 h-10 text-sm",
+                        currentPlayerHole?.greenMissSide === 'left' ? 
+                        "bg-purple-500 text-white border-2 border-yellow-400" :
+                        "bg-white/10 hover:bg-white/20 text-white border border-purple-300"
+                      )}
+                    >
+                      Left
+                    </Button>
+                    <Button
+                      onClick={() => updateScore('greenMissSide', currentPlayerHole?.greenMissSide === 'right' ? null : 'right')}
+                      className={cn(
+                        "flex-1 h-10 text-sm",
+                        currentPlayerHole?.greenMissSide === 'right' ? 
+                        "bg-purple-500 text-white border-2 border-yellow-400" :
+                        "bg-white/10 hover:bg-white/20 text-white border border-purple-300"
+                      )}
+                    >
+                      Right
+                    </Button>
+                  </div>
+                </div>
+              )}
+              {/* Unreachable Button - only shown when Miss is selected or when Unreachable is already selected */}
+              {(currentPlayerHole?.greens === false || currentPlayerHole?.greens === 'unreachable') && (
+                <Button
+                  onClick={() => updateScore('greens', 'unreachable')}
+                  className={cn(
+                    "w-full h-10 text-sm mt-2",
+                    currentPlayerHole?.greens === 'unreachable' ? 
+                    "bg-purple-500 text-white border-2 border-yellow-400" :
+                    "bg-white/10 hover:bg-white/20 text-white border border-purple-300"
+                  )}
+                >
+                  Unreachable
+                </Button>
+              )}
             </div>
 
             {/* Penalties */}

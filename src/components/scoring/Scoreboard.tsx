@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { GolfRound } from '@/lib/golf/types';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 
 interface ScoreboardProps {
@@ -55,6 +56,67 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
     // back
     return Array.from({ length: Math.min(9, totalHoles - 9) }, (_, i) => i + 9);
   }, [has18Holes, selectedNine, totalHoles]);
+
+  const getPlayerInitials = (name: string) => {
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  };
+
+  // Calculate player statistics
+  const calculatePlayerStats = (playerIndex: number) => {
+    const player = round.players[playerIndex];
+    const stats = {
+      holesPlayed: 0,
+      birdies: 0,
+      eagles: 0,
+      pars: 0,
+      bogeys: 0,
+      doubleBogeys: 0,
+      fairwaysHit: 0,
+      fairwaysTotal: 0,
+      greensHit: 0,
+      greensTotal: 0,
+      totalPutts: 0,
+      averagePutts: 0,
+      score: player.total || 0,
+      netScore: player.netTotal || 0
+    };
+
+    round.holes?.forEach((hole, holeIndex) => {
+      const strokes = player.scores[holeIndex];
+      if (strokes > 0) {
+        stats.holesPlayed++;
+        const diff = strokes - hole.par;
+        
+        if (diff <= -2) stats.eagles++;
+        else if (diff === -1) stats.birdies++;
+        else if (diff === 0) stats.pars++;
+        else if (diff === 1) stats.bogeys++;
+        else if (diff >= 2) stats.doubleBogeys++;
+
+        // Fairway stats - only for par 4s and 5s
+        if (hole.par >= 4) {
+          stats.fairwaysTotal++;
+          const pHole = player.holeDetails?.[holeIndex];
+          if (pHole?.fairways) stats.fairwaysHit++;
+        }
+
+        // Green stats
+        stats.greensTotal++;
+        const pHole2 = player.holeDetails?.[holeIndex];
+        if (pHole2?.greens) stats.greensHit++;
+
+        // Putt stats
+        const pHolePutts = player.holeDetails?.[holeIndex]?.putts;
+        const puttsToAdd = typeof pHolePutts === 'number' ? pHolePutts : (hole.putts || 0);
+        if (puttsToAdd > 0) {
+          stats.totalPutts += puttsToAdd;
+        }
+      }
+    });
+
+    stats.averagePutts = stats.holesPlayed > 0 ? stats.totalPutts / stats.holesPlayed : 0;
+    return stats;
+  };
 
   const getPar = (holeIndex: number): number => {
     const holeNumber = holeIndex + 1;
@@ -185,19 +247,119 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
                 Back 9
               </TabsTrigger>
               <TabsTrigger value="all" className="text-xs data-[state=active]:bg-yellow-500 data-[state=active]:text-black">
-                All 18
+                Stats
               </TabsTrigger>
             </TabsList>
           </Tabs>
         </div>
       )}
 
-      {/* Scoreboard Grid - Full Width */}
+      {/* Conditionally render Stats or Scoreboard */}
+      {selectedNine === 'all' ? (
+        /* Stats View */
+        <div className="space-y-3">
+          {round.players.map((player, playerIndex) => {
+            const stats = calculatePlayerStats(playerIndex);
+            const toPar = stats.score - (stats.holesPlayed > 0 ? round.holes.slice(0, stats.holesPlayed).reduce((sum, h) => sum + h.par, 0) : 0);
+            
+            return (
+              <div key={player.playerId} className="bg-white/10 rounded-lg p-4 space-y-3">
+                {/* Player Header */}
+                <div className="flex items-center gap-3 mb-3">
+                  <Avatar className="h-10 w-10">
+                    <AvatarFallback 
+                      className={cn(
+                        'text-sm font-medium',
+                        playerIndex === 0 ? 'bg-blue-600 text-white' : 
+                        playerIndex === 1 ? 'bg-red-600 text-white' : 
+                        playerIndex === 2 ? 'bg-green-600 text-white' : 'bg-orange-600 text-white'
+                      )}
+                    >
+                      {getPlayerInitials(player.name)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1">
+                    <div className="font-semibold text-white">{player.name}</div>
+                    <div className="text-sm text-purple-200">
+                      {stats.holesPlayed} holes • Score: {stats.score} (
+                      <span className={cn(toPar < 0 ? 'text-green-400' : toPar > 0 ? 'text-red-400' : 'text-white')}>
+                        {toPar > 0 ? `+${toPar}` : toPar === 0 ? 'E' : toPar}
+                      </span>)
+                    </div>
+                  </div>
+                </div>
+
+                {/* Score Breakdown */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-purple-200">Eagles:</span>
+                      <span className="text-yellow-400 font-medium">{stats.eagles}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-purple-200">Birdies:</span>
+                      <span className="text-green-400 font-medium">{stats.birdies}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-purple-200">Pars:</span>
+                      <span className="text-white font-medium">{stats.pars}</span>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-purple-200">Bogeys:</span>
+                      <span className="text-yellow-300 font-medium">{stats.bogeys}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-purple-200">Double+:</span>
+                      <span className="text-red-400 font-medium">{stats.doubleBogeys}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Performance Stats */}
+                <div className="grid grid-cols-3 gap-3 pt-3 border-t border-white/10">
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-white">
+                      {stats.fairwaysTotal > 0 ? 
+                        Math.round((stats.fairwaysHit / stats.fairwaysTotal) * 100) : 0}%
+                    </div>
+                    <div className="text-xs text-purple-200">Fairways</div>
+                    <div className="text-xs text-purple-300">
+                      {stats.fairwaysHit}/{stats.fairwaysTotal}
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-white">
+                      {stats.greensTotal > 0 ? 
+                        Math.round((stats.greensHit / stats.greensTotal) * 100) : 0}%
+                    </div>
+                    <div className="text-xs text-purple-200">Greens</div>
+                    <div className="text-xs text-purple-300">
+                      {stats.greensHit}/{stats.greensTotal}
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-white">
+                      {stats.averagePutts.toFixed(1)}
+                    </div>
+                    <div className="text-xs text-purple-200">Avg Putts</div>
+                    <div className="text-xs text-purple-300">
+                      {stats.totalPutts} total
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        /* Scoreboard Grid - Full Width */
       <div className="w-full">
         {/* Header row: Hole numbers */}
         <div className={cn('flex items-center gap-0.5 mb-1', rowHeight)}>
-          <div className={cn('w-16 sm:w-20 shrink-0', headerSize, 'text-purple-300 font-medium')}>
-            {compact ? '' : 'Hole'}
+          <div className={cn('w-10 shrink-0', headerSize, 'text-purple-300 font-medium')}>
+            {/* Empty space for avatar */}
           </div>
           <div className="flex-1 grid gap-0.5" style={{ gridTemplateColumns: `repeat(${displayedHoleIndices.length}, minmax(0, 1fr))` }}>
             {displayedHoleIndices.map((holeIndex) => (
@@ -216,17 +378,17 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
               </div>
             ))}
           </div>
-          <div className={cn('w-10 sm:w-12 shrink-0 flex items-center justify-center', headerSize, 'text-purple-300 font-bold')}>
+          <div className={cn('w-8 shrink-0 flex items-center justify-center', headerSize, 'text-purple-300 font-bold')}>
             {selectedNine === 'front' ? 'OUT' : selectedNine === 'back' ? 'IN' : 'TOT'}
           </div>
-          <div className={cn('w-10 sm:w-12 shrink-0 flex items-center justify-center', headerSize, 'text-purple-300 font-bold')}>
+          <div className={cn('w-8 shrink-0 flex items-center justify-center', headerSize, 'text-purple-300 font-bold')}>
             +/-
           </div>
         </div>
 
         {/* Par row */}
         <div className={cn('flex items-center gap-0.5 mb-1', rowHeight)}>
-          <div className={cn('w-16 sm:w-20 shrink-0', headerSize, 'text-purple-400')}>Par</div>
+          <div className={cn('w-10 shrink-0 flex items-center justify-center', headerSize, 'text-purple-400 font-medium')}>Hole</div>
           <div className="flex-1 grid gap-0.5" style={{ gridTemplateColumns: `repeat(${displayedHoleIndices.length}, minmax(0, 1fr))` }}>
             {displayedHoleIndices.map((holeIndex) => (
               <div
@@ -241,10 +403,10 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
               </div>
             ))}
           </div>
-          <div className={cn('w-10 sm:w-12 shrink-0 flex items-center justify-center bg-white/5 rounded', headerSize, 'text-purple-300')}>
+          <div className={cn('w-8 shrink-0 flex items-center justify-center bg-white/5 rounded', headerSize, 'text-purple-300')}>
             {displayedPar}
           </div>
-          <div className={cn('w-10 sm:w-12 shrink-0 flex items-center justify-center bg-white/5 rounded', headerSize, 'text-purple-300')}>
+          <div className={cn('w-8 shrink-0 flex items-center justify-center bg-white/5 rounded', headerSize, 'text-purple-300')}>
             E
           </div>
         </div>
@@ -256,18 +418,19 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
 
           return (
             <div key={player.playerId} className={cn('flex items-center gap-0.5 mb-0.5', rowHeight)}>
-              <div 
-                className={cn(
-                  'w-16 sm:w-20 shrink-0 truncate',
-                  headerSize,
-                  'font-medium',
-                  playerIndex === 0 ? 'text-blue-300' : 
-                  playerIndex === 1 ? 'text-red-300' : 
-                  playerIndex === 2 ? 'text-green-300' : 'text-orange-300'
-                )}
-                title={player.name}
-              >
-                {player.name}
+              <div className="w-10 shrink-0 flex items-center justify-center">
+                <Avatar className="h-7 w-7">
+                  <AvatarFallback 
+                    className={cn(
+                      'text-xs font-medium',
+                      playerIndex === 0 ? 'bg-blue-600 text-white' : 
+                      playerIndex === 1 ? 'bg-red-600 text-white' : 
+                      playerIndex === 2 ? 'bg-green-600 text-white' : 'bg-orange-600 text-white'
+                    )}
+                  >
+                    {getPlayerInitials(player.name)}
+                  </AvatarFallback>
+                </Avatar>
               </div>
               <div className="flex-1 grid gap-0.5" style={{ gridTemplateColumns: `repeat(${displayedHoleIndices.length}, minmax(0, 1fr))` }}>
                 {displayedHoleIndices.map((holeIndex) => {
@@ -303,7 +466,7 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
               </div>
               {/* Total */}
               <div className={cn(
-                'w-10 sm:w-12 shrink-0 flex items-center justify-center rounded bg-white/10 font-bold',
+                'w-8 shrink-0 flex items-center justify-center rounded bg-white/10 font-bold',
                 headerSize,
                 playerIndex === 0 ? 'text-blue-300' : 
                 playerIndex === 1 ? 'text-red-300' : 
@@ -313,7 +476,7 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
               </div>
               {/* To Par */}
               <div className={cn(
-                'w-10 sm:w-12 shrink-0 flex items-center justify-center rounded bg-white/10 font-bold',
+                'w-8 shrink-0 flex items-center justify-center rounded bg-white/10 font-bold',
                 headerSize,
                 toPar < 0 ? 'text-green-400' : toPar > 0 ? 'text-red-400' : 'text-white'
               )}>
@@ -361,6 +524,7 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
           </div>
         )}
       </div>
+      )}
     </div>
   );
 };

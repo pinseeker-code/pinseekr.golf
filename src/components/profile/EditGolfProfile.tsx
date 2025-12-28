@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,7 +23,7 @@ interface EditGolfProfileProps {
 export function EditGolfProfile({ profile, onSave, className }: EditGolfProfileProps) {
   const { user } = useCurrentUser();
   const { createProfile, updateProfile } = useGolfProfileMutation();
-  const { data: handicapResult, isLoading: isCalculatingHandicap, refetch: recalculateHandicap } = useHandicapCalculation(user?.pubkey);
+  const { data: handicapResult, isLoading: isCalculatingHandicap } = useHandicapCalculation(user?.pubkey);
   
   const [formData, setFormData] = useState({
     name: profile?.name || '',

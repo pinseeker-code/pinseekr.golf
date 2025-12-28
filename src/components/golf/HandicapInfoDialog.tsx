@@ -122,7 +122,7 @@ export function HandicapInfoDialog({ handicapResult, trigger }: HandicapInfoDial
                 Your Best Rounds Used
               </h4>
               <div className="space-y-1 max-h-32 overflow-y-auto">
-                {handicapResult.bestDifferentials.map((d, i) => (
+                {handicapResult.bestDifferentials.map((d) => (
                   <div 
                     key={d.roundId} 
                     className="flex justify-between items-center text-xs py-1 px-2 bg-muted/50 rounded"

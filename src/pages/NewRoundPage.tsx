@@ -30,7 +30,7 @@ import {
   type PinseekrCupPlayer,
   type PinseekrCupConfig
 } from '@/lib/golf/pinseekrCupEngine';
-import { Plus, Users, Calendar, QrCode, Trophy, Trash2, Loader2, User, CheckCircle, Target, Zap } from 'lucide-react';
+import { Plus, Users, Calendar, QrCode, Trophy, Trash2, Loader2, CheckCircle, Target, Zap } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 import { CourseSelection } from '@/components/golf/CourseSelection';
@@ -463,6 +463,9 @@ export const NewRoundPage: React.FC = () => {
   const [netScoring] = useState<boolean>(false);
   const [wolfSettingsOpen, setWolfSettingsOpen] = useState(false);
   const [wolfPartners, setWolfPartners] = useState<Record<string, string | null>>({});
+  
+  // Vegas teams state
+  const [vegasTeams, setVegasTeams] = useState<{ teamA: string[]; teamB: string[] }>({ teamA: [], teamB: [] });
 
   // Game mode data for tabs
   const gameModeData = {
@@ -1563,358 +1566,234 @@ export const NewRoundPage: React.FC = () => {
 
 
                       {/* Players List */}
-                      <div className="space-y-3">
+                      <div className="space-y-2">
                         {round.players && round.players.length > 0 ? (
                           round.players.map((player, index) => {
-                            // Check if this player has a verified profile
-                            const hasProfile = (player.playerId === user?.pubkey && metadata) || 
-                                             ((validatedPubkeys[index] || (player.playerId.length === 64 && /^[a-fA-F0-9]{64}$/.test(player.playerId))) && profileDataMap[index]?.metadata);
+                            // Check if this player has a verified profile or is the logged-in user
+                            const isCurrentUser = player.playerId === user?.pubkey;
+                            const hasNostrProfile = (validatedPubkeys[index] || (player.playerId.length === 64 && /^[a-fA-F0-9]{64}$/.test(player.playerId))) && profileDataMap[index]?.metadata;
+                            
+                            // Get display name
+                            const displayName = isCurrentUser 
+                              ? (player.name || metadata?.name || metadata?.display_name || genUserName(user.pubkey))
+                              : hasNostrProfile
+                                ? (profileDataMap[index]?.metadata?.name || profileDataMap[index]?.metadata?.display_name || genUserName(validatedPubkeys[index] || player.playerId))
+                                : player.name;
+                            
+                            // Get avatar picture
+                            const avatarPicture = isCurrentUser 
+                              ? metadata?.picture 
+                              : profileDataMap[index]?.metadata?.picture;
                             
                             return (
-                            <div key={player.playerId} className={`p-2 rounded-lg ${hasProfile ? 'bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800' : 'bg-transparent'}`}>
-                              <div className="grid grid-cols-12 gap-3 items-center">
-                                {/* Always show avatar for all players */}
-                                <div className="col-span-1 flex justify-center">
-                                  <Avatar className="h-8 w-8">
-                                    {/* Show Nostr profile picture - check multiple sources */}
-                                    {(() => {
-                                      // 1. Logged-in user gets priority
-                                      if (player.playerId === user?.pubkey && metadata?.picture) {
-                                        return <AvatarImage src={metadata.picture} />;
-                                      }
-                                      // 2. Check validated pubkeys profile data
-                                      if (validatedPubkeys[index] && profileDataMap[index]?.metadata?.picture) {
-                                        return <AvatarImage src={profileDataMap[index].metadata.picture} />;
-                                      }
-                                      // 3. For hex pubkeys (from validated npubs), use useAuthor hook directly
-                                      const isHexPubkey = player.playerId.length === 64 && /^[a-fA-F0-9]{64}$/.test(player.playerId);
-                                      if (isHexPubkey && profileDataMap[index]?.metadata?.picture) {
-                                        return <AvatarImage src={profileDataMap[index].metadata.picture} />;
-                                      }
-                                      // 4. Final fallback for logged-in user
-                                      if (player.playerId === user?.pubkey && metadata?.picture) {
-                                        return <AvatarImage src={metadata.picture} />;
-                                      }
-                                      return null;
-                                    })()}
-                                    <AvatarFallback className={`${
-                                      player.playerId === user?.pubkey ? "bg-green-600" : "bg-blue-600"
-                                    } text-white text-sm`}>
-                                      {getPlayerInitials(player.name)}
+                              <div 
+                                key={player.playerId} 
+                                className={`p-3 rounded-lg border ${
+                                  isCurrentUser 
+                                    ? 'bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800' 
+                                    : 'bg-card border-border'
+                                }`}
+                              >
+                                <div className="flex items-center gap-3">
+                                  {/* Avatar */}
+                                  <Avatar className="h-10 w-10 flex-shrink-0">
+                                    {avatarPicture && <AvatarImage src={avatarPicture} />}
+                                    <AvatarFallback className={`${isCurrentUser ? "bg-green-600" : "bg-blue-600"} text-white text-sm`}>
+                                      {getPlayerInitials(displayName || player.name)}
                                     </AvatarFallback>
                                   </Avatar>
-                                </div>
-                                <div className="col-span-6">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <Label htmlFor={`name-${player.playerId}`}>
-                                      {player.playerId === user?.pubkey ? `Player ${index + 1} (You)` : `Player ${index + 1}`}
-                                    </Label>
-                                  </div>
-                                  <div className="space-y-2">
-                                    {/* Show profile card when Nostr profile is loaded - including logged-in user */}
-                                    {(player.playerId === user?.pubkey && metadata) || 
-                                     ((validatedPubkeys[index] || (player.playerId.length === 64 && /^[a-fA-F0-9]{64}$/.test(player.playerId))) && profileDataMap[index]?.metadata) ? (
-                                      <div className="flex items-center justify-between p-3 bg-transparent rounded-md">
-                                        <div className="flex items-center space-x-3">
-                                          <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-medium truncate">
-                                              {player.playerId === user?.pubkey 
-                                                ? (metadata?.name || metadata?.display_name || genUserName(user.pubkey))
-                                                : (profileDataMap[index]?.metadata?.name || 
-                                                   profileDataMap[index]?.metadata?.display_name || 
-                                                   genUserName(validatedPubkeys[index] || player.playerId))}
-                                            </p>
-                                          </div>
-                                          <CheckCircle className="h-4 w-4 text-green-600 flex-shrink-0" />
-                                        </div>
-                                      </div>
+                                  
+                                  {/* Name Section */}
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs text-muted-foreground">
+                                        Player {index + 1}{isCurrentUser && ' (You)'}
+                                      </span>
+                                      {(isCurrentUser || hasNostrProfile) && (
+                                        <CheckCircle className="h-3 w-3 text-green-600" />
+                                      )}
+                                    </div>
+                                    {isCurrentUser || hasNostrProfile ? (
+                                      <p className="font-medium truncate">{displayName}</p>
                                     ) : (
-                                      /* Show input field when no profile loaded */
-                                      <>
-                                        <div className="relative">
-                                          <Input
-                                            id={`name-${player.playerId}`}
-                                            placeholder={player.playerId === user?.pubkey ? "Your name" : "Enter Player Name or npub"}
-                                            value={player.name}
-                                            onChange={(e) => updatePlayer(index, 'name', e.target.value)}
-                                            disabled={player.playerId === user?.pubkey}
-                                            className={`${
-                                              player.playerId === user?.pubkey ? "bg-green-50 border-green-200" : ""
-                                            } ${
-                                              pubkeyErrors[index] ? "border-destructive" : ""
-                                            }`}
-                                          />
-                                          {validatingPlayers[index] && (
-                                            <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                                              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                                            </div>
-                                          )}
-                                        </div>
-                                        {pubkeyErrors[index] && (
-                                          <p className="text-sm text-destructive">{pubkeyErrors[index]}</p>
+                                      <div className="relative">
+                                        <Input
+                                          id={`name-${player.playerId}`}
+                                          placeholder="Name or npub"
+                                          value={player.name}
+                                          onChange={(e) => updatePlayer(index, 'name', e.target.value)}
+                                          className={`h-8 ${pubkeyErrors[index] ? "border-destructive" : ""}`}
+                                        />
+                                        {validatingPlayers[index] && (
+                                          <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
                                         )}
-                                      </>
+                                      </div>
+                                    )}
+                                    {pubkeyErrors[index] && (
+                                      <p className="text-xs text-destructive mt-1">{pubkeyErrors[index]}</p>
                                     )}
                                   </div>
-                                </div>
-                                <div className="col-span-3">
-                                  <Label htmlFor={`handicap-${player.playerId}`}>HCP</Label>
-                                  <Input
-                                    id={`handicap-${player.playerId}`}
-                                    type="number"
-                                    min="0"
-                                    max="54"
-                                    value={player.handicap || ''}
-                                    onChange={(e) => {
-                                      const value = e.target.value === '' ? 0 : parseInt(e.target.value);
-                                      updatePlayer(index, 'handicap', isNaN(value) ? 0 : value);
-                                    }}
-                                    className="text-center"
-                                  />
-                                </div>
-                                <div className="col-span-2 flex justify-end">
+                                  
+                                  {/* HCP Input */}
+                                  <div className="w-16 flex-shrink-0">
+                                    <Label htmlFor={`handicap-${player.playerId}`} className="text-xs text-muted-foreground">HCP</Label>
+                                    <Input
+                                      id={`handicap-${player.playerId}`}
+                                      type="tel"
+                                      inputMode="numeric"
+                                      pattern="[0-9]*"
+                                      min="0"
+                                      max="54"
+                                      value={player.handicap || ''}
+                                      onChange={(e) => {
+                                        const digits = e.target.value.replace(/[^0-9]/g, '');
+                                        const value = digits === '' ? 0 : parseInt(digits);
+                                        updatePlayer(index, 'handicap', isNaN(value) ? 0 : value);
+                                      }}
+                                      onContextMenu={(e) => e.preventDefault()}
+                                      className="h-8 text-center focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none"
+                                    />
+                                  </div>
+                                  
+                                  {/* Delete Button */}
                                   <Button
                                     variant="ghost"
                                     size="icon"
+                                    className="h-8 w-8 flex-shrink-0 text-muted-foreground hover:text-destructive"
                                     onClick={() => removePlayer(index)}
                                   >
                                     <Trash2 className="h-4 w-4" />
                                   </Button>
                                 </div>
                               </div>
-                            </div>
                             );
                           })
                         ) : (
-                          /* Empty state message */
-                          <div className="p-6 text-center text-muted-foreground">
+                          <div className="p-6 text-center text-muted-foreground border border-dashed rounded-lg">
                             <Users className="h-8 w-8 mx-auto mb-2 opacity-50" />
                             <p>No players added yet</p>
-                            <p className="text-sm">Use the input field below to add your first player</p>
+                            <p className="text-sm">Add players below to get started</p>
                           </div>
                         )}
                       </div>
 
-                      {/* Add Player Input - Show when fewer than 4 players */}
+                      {/* Add Player Input */}
                       {(round.players?.length || 0) < 4 && (
-                      <div key="persistent-player-input" className="p-4 rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800">
-                        <div className="grid grid-cols-12 gap-3 items-center">
-                          {/* Always show avatar placeholder for new player */}
-                          <div className="col-span-1 flex justify-center">
-                            <Avatar className="h-8 w-8">
-                              {/* Show Nostr profile picture if available for quick add */}
-                              {fallbackValidatedPubkey && fallbackProfileData?.metadata?.picture ? (
+                        <div className="p-3 rounded-lg bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800">
+                          <div className="flex items-center gap-3">
+                            {/* Avatar */}
+                            <Avatar className="h-10 w-10 flex-shrink-0">
+                              {fallbackValidatedPubkey && fallbackProfileData?.metadata?.picture && (
                                 <AvatarImage src={fallbackProfileData.metadata.picture} />
-                              ) : null}
-                              <AvatarFallback className="bg-blue-600 text-white text-sm">
-                                {fallbackPlayerInput ? getPlayerInitials(fallbackProfileData?.metadata?.name || fallbackProfileData?.metadata?.display_name || genUserName(fallbackValidatedPubkey || '')) : '+'}
+                              )}
+                              <AvatarFallback className="bg-yellow-500 text-white text-sm">
+                                {fallbackPlayerInput ? getPlayerInitials(fallbackProfileData?.metadata?.name || fallbackPlayerInput) : '+'}
                               </AvatarFallback>
                             </Avatar>
-                          </div>
-                          <div className="col-span-6">
-                            <Label htmlFor="quick-add-player">Add Player {(round.players?.length || 0) + 1}</Label>
-                            <div className="space-y-2">
-                              {/* Show profile card when Nostr profile is loaded for quick add */}
+                            
+                            {/* Name Input / Profile Display */}
+                            <div className="flex-1 min-w-0">
+                              <span className="text-xs text-muted-foreground">Add Player {(round.players?.length || 0) + 1}</span>
                               {fallbackValidatedPubkey && fallbackProfileData?.metadata ? (
-                                <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-md">
-                                  <div className="flex items-center space-x-3">
-                                    {fallbackProfileData.metadata.picture ? (
-                                      <img 
-                                        src={fallbackProfileData.metadata.picture} 
-                                        alt="Profile" 
-                                        className="h-8 w-8 rounded-full object-cover"
-                                        onError={(e) => {
-                                          const target = e.target as HTMLImageElement;
-                                          target.style.display = 'none';
-                                        }}
-                                      />
-                                    ) : (
-                                      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                                        <User className="h-4 w-4 text-primary" />
-                                      </div>
-                                    )}
-                                    <div className="flex-1 min-w-0">
-                                      <p className="text-sm font-medium truncate">
-                                        {fallbackProfileData.metadata.name || 
-                                         fallbackProfileData.metadata.display_name || 
-                                         genUserName(fallbackValidatedPubkey)}
-                                      </p>
-                                      {fallbackProfileData.metadata.about && (
-                                        <p className="text-xs text-muted-foreground truncate">
-                                          {fallbackProfileData.metadata.about}
-                                        </p>
-                                      )}
-                                    </div>
-                                    <CheckCircle className="h-4 w-4 text-green-600 flex-shrink-0" />
-                                  </div>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => {
-                                      // Check if this player is already in the round
-                                      const existingPlayer = round.players?.find(p => p.playerId === fallbackValidatedPubkey);
-                                      if (existingPlayer) {
-                                        // Player already exists, just clear input
-                                        setFallbackPlayerInput('');
-                                        setFallbackValidatedPubkey(null);
-                                        setFallbackPubkeyError(null);
-                                        setFallbackValidating(false);
-                                        return;
-                                      }
-                                      
-                                      // Add this validated player to the round
-                                      const actualName = fallbackProfileData.metadata?.name || 
-                                                        fallbackProfileData.metadata?.display_name || 
-                                                        genUserName(fallbackValidatedPubkey);
-                                      
-                                      const newPlayer: PlayerInRound = {
-                                        playerId: fallbackValidatedPubkey,
-                                        name: actualName,
-                                        handicap: 0,
-                                        scores: [],
-                                        total: 0,
-                                        netTotal: 0
-                                      };
-                                      
-                                      setRound(prev => ({
-                                        ...prev!,
-                                        players: [...(prev!.players || []), newPlayer]
-                                      }));
-                                      
-                                      // Set validation state for the newly added player
-                                      const newPlayerIndex = (round.players?.length || 0);
-                                      if (fallbackValidatedPubkey) {
-                                        setValidatedPubkeys(prev => ({ ...prev, [newPlayerIndex]: fallbackValidatedPubkey }));
-                                      }
-                                      
-                                      // Clear the input
-                                      setFallbackPlayerInput('');
-                                      setFallbackValidatedPubkey(null);
-                                      setFallbackPubkeyError(null);
-                                      setFallbackValidating(false);
-                                    }}
-                                    className="text-xs text-blue-600 hover:text-blue-700 font-medium"
-                                  >
-                                    Add
-                                  </Button>
+                                <div className="flex items-center gap-2">
+                                  <p className="font-medium truncate">
+                                    {fallbackProfileData.metadata.name || fallbackProfileData.metadata.display_name || genUserName(fallbackValidatedPubkey)}
+                                  </p>
+                                  <CheckCircle className="h-3 w-3 text-green-600 flex-shrink-0" />
                                 </div>
                               ) : (
-                                /* Show input field when no profile loaded */
-                                <>
-                                  <div className="relative">
-                                    <Input
-                                      id="quick-add-player"
-                                      placeholder="Enter Player Name or npub"
-                                      value={fallbackPlayerInput}
-                                      onChange={(e) => {
-                                        const value = e.target.value;
-                                        setFallbackPlayerInput(value);
-                                        validateFallbackNpubInput(value);
-                                      }}
-                                      className={`${fallbackPubkeyError ? "border-destructive" : "border-blue-300 focus:border-blue-500"}`}
-                                      onKeyDown={(e) => {
-                                        if (e.key === 'Enter' && fallbackPlayerInput.trim()) {
-                                          const playerId = fallbackValidatedPubkey || `player-${(round.players?.length || 0) + 1}`;
-                                          
-                                          // Check if this player is already in the round
-                                          const existingPlayer = round.players?.find(p => p.playerId === playerId);
-                                          if (existingPlayer) {
-                                            // Player already exists, just clear input
-                                            setFallbackPlayerInput('');
-                                            setFallbackValidatedPubkey(null);
-                                            setFallbackPubkeyError(null);
-                                            setFallbackValidating(false);
-                                            return;
-                                          }
-                                          
-                                          // Add player on Enter key
-                                          const actualName = fallbackValidatedPubkey && fallbackProfileData?.metadata
-                                            ? (fallbackProfileData.metadata.name || 
-                                               fallbackProfileData.metadata.display_name || 
-                                               genUserName(fallbackValidatedPubkey))
-                                            : fallbackValidatedPubkey 
-                                              ? genUserName(fallbackValidatedPubkey) 
-                                              : fallbackPlayerInput.trim();
-                                          
-                                          const newPlayer: PlayerInRound = {
-                                            playerId: playerId,
-                                            name: actualName,
-                                            handicap: 0,
-                                            scores: [],
-                                            total: 0,
-                                            netTotal: 0
-                                          };
-                                          
-                                          setRound(prev => ({
-                                            ...prev!,
-                                            players: [...(prev!.players || []), newPlayer]
-                                          }));
-                                          
-                                          // Set validation state for the newly added player
-                                          const newPlayerIndex = (round.players?.length || 0);
-                                          if (fallbackValidatedPubkey) {
-                                            setValidatedPubkeys(prev => ({ ...prev, [newPlayerIndex]: fallbackValidatedPubkey }));
-                                          }
-                                          
-                                          // Clear the input
-                                          setFallbackPlayerInput('');
-                                          setFallbackValidatedPubkey(null);
-                                          setFallbackPubkeyError(null);
-                                          setFallbackValidating(false);
-                                        }
-                                      }}
-                                    />
-                                    {fallbackValidating && (
-                                      <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                                      </div>
-                                    )}
-                                  </div>
-                                  {fallbackPubkeyError && (
-                                    <p className="text-sm text-destructive">{fallbackPubkeyError}</p>
+                                <div className="relative">
+                                  <Input
+                                    id="quick-add-player"
+                                    placeholder="Name or npub"
+                                    value={fallbackPlayerInput}
+                                    onChange={(e) => {
+                                      setFallbackPlayerInput(e.target.value);
+                                      validateFallbackNpubInput(e.target.value);
+                                    }}
+                                    className={`h-8 ${fallbackPubkeyError ? "border-destructive" : "border-yellow-300 focus:border-yellow-500"}`}
+                                  />
+                                  {fallbackValidating && (
+                                    <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
                                   )}
-                                  {fallbackPlayerInput && !fallbackValidating && !fallbackPubkeyError && (
-                                    <p className="text-xs text-blue-600 dark:text-blue-400">
-                                      Press Enter to add "{fallbackPlayerInput}"
-                                    </p>
-                                  )}
-                                </>
+                                </div>
+                              )}
+                              {fallbackPubkeyError && (
+                                <p className="text-xs text-destructive mt-1">{fallbackPubkeyError}</p>
                               )}
                             </div>
-                          </div>
-                          {fallbackPlayerInput && (
-                            <div className="col-span-3">
-                              <Label htmlFor="quick-handicap">HCP</Label>
+                            
+                            {/* HCP Input */}
+                            <div className="w-16 flex-shrink-0">
+                              <Label htmlFor="quick-handicap" className="text-xs text-muted-foreground">HCP</Label>
                               <Input
                                 id="quick-handicap"
-                                type="number"
+                                type="tel"
+                                inputMode="numeric"
+                                pattern="[0-9]*"
                                 min="0"
                                 max="54"
                                 defaultValue={0}
-                                className="text-center border-blue-300 focus:border-blue-500"
+                                onContextMenu={(e) => e.preventDefault()}
+                                className="h-8 text-center border-yellow-300 focus:border-yellow-500 focus:ring-2 focus:ring-yellow-200 focus:outline-none"
                               />
                             </div>
-                          )}
-                          <div className={fallbackPlayerInput ? "col-span-2" : "col-span-5"}>
-                            {fallbackPlayerInput && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  // Clear the input
+                            
+                            {/* Add Button */}
+                            <Button
+                              variant="default"
+                              size="sm"
+                              disabled={!fallbackPlayerInput.trim()}
+                              className="h-8 px-3 bg-yellow-500 hover:bg-yellow-600 text-black flex-shrink-0"
+                              onClick={() => {
+                                if (!fallbackPlayerInput.trim()) return;
+                                
+                                const playerId = fallbackValidatedPubkey || `player-${(round.players?.length || 0) + 1}`;
+                                
+                                // Check if player already exists
+                                if (round.players?.find(p => p.playerId === playerId)) {
                                   setFallbackPlayerInput('');
                                   setFallbackValidatedPubkey(null);
                                   setFallbackPubkeyError(null);
                                   setFallbackValidating(false);
-                                }}
-                                className="text-gray-500 hover:text-gray-700"
-                              >
-                                Clear
-                              </Button>
-                            )}
+                                  return;
+                                }
+                                
+                                const actualName = fallbackValidatedPubkey && fallbackProfileData?.metadata
+                                  ? (fallbackProfileData.metadata.name || fallbackProfileData.metadata.display_name || genUserName(fallbackValidatedPubkey))
+                                  : fallbackValidatedPubkey 
+                                    ? genUserName(fallbackValidatedPubkey) 
+                                    : fallbackPlayerInput.trim();
+                                
+                                const newPlayer: PlayerInRound = {
+                                  playerId,
+                                  name: actualName,
+                                  handicap: 0,
+                                  scores: [],
+                                  total: 0,
+                                  netTotal: 0
+                                };
+                                
+                                setRound(prev => ({
+                                  ...prev!,
+                                  players: [...(prev!.players || []), newPlayer]
+                                }));
+                                
+                                if (fallbackValidatedPubkey) {
+                                  const newPlayerIndex = round.players?.length || 0;
+                                  setValidatedPubkeys(prev => ({ ...prev, [newPlayerIndex]: fallbackValidatedPubkey }));
+                                }
+                                
+                                setFallbackPlayerInput('');
+                                setFallbackValidatedPubkey(null);
+                                setFallbackPubkeyError(null);
+                                setFallbackValidating(false);
+                              }}
+                            >
+                              <Plus className="h-4 w-4" />
+                            </Button>
                           </div>
                         </div>
-                      </div>
                       )}
 
                       {/* Quick Actions */}
@@ -2716,9 +2595,8 @@ export const NewRoundPage: React.FC = () => {
                                 {/* Stableford rules moved to the Stableford tab below */}
                               </div>
 
-                              {/* Wolf - Hidden for initial launch, will be added back after more iteration */}
-                              {false && (
-                                <div 
+                              {/* Wolf - Hidden for initial launch, will be added back after more iteration
+                              <div 
                                   className={`relative p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 hover:shadow-lg hover:scale-105 ${
                                     selectedGameModes.wolf 
                                       ? 'border-orange-500 bg-orange-50 dark:bg-orange-950 shadow-lg shadow-orange-200 dark:shadow-orange-900' 
@@ -2750,18 +2628,21 @@ export const NewRoundPage: React.FC = () => {
                                     </>
                                   )}
                                 </div>
-                              )}
+                              */}
 
                               {/* Vegas */}
                               <div 
-                                className={`relative p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 hover:shadow-lg hover:scale-105 ${
+                                className={`relative p-4 rounded-xl border-2 transition-all duration-300 ${
                                   selectedGameModes.vegas 
                                     ? 'border-pink-500 bg-pink-50 dark:bg-pink-950 shadow-lg shadow-pink-200 dark:shadow-pink-900' 
-                                    : 'border-gray-200 dark:border-gray-700 hover:border-pink-300 dark:hover:border-pink-600 bg-white dark:bg-gray-800'
+                                    : 'border-gray-200 dark:border-gray-700 hover:border-pink-300 dark:hover:border-pink-600 bg-white dark:bg-gray-800 cursor-pointer hover:shadow-lg hover:scale-105'
                                 }`}
-                                onClick={() => toggleGameMode('vegas')}
+                                onClick={() => !selectedGameModes.vegas && toggleGameMode('vegas')}
                               >
-                                <div className="flex items-center gap-3 mb-3">
+                                <div 
+                                  className={`flex items-center gap-3 mb-3 ${selectedGameModes.vegas ? 'cursor-pointer' : ''}`}
+                                  onClick={() => selectedGameModes.vegas && toggleGameMode('vegas')}
+                                >
                                   <div className="w-8 h-8 rounded-full bg-pink-100 dark:bg-pink-900 flex items-center justify-center">
                                     <span className="text-pink-600 dark:text-pink-400 font-bold">🎲</span>
                                   </div>
@@ -2771,17 +2652,123 @@ export const NewRoundPage: React.FC = () => {
                                   Two-person teams with combined scoring
                                 </p>
                                 {selectedGameModes.vegas && (
-                                  <div className="absolute top-2 right-2">
-                                    <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-pink-600 text-white rounded-full">
-                                      Selected
-                                    </span>
-                                  </div>
+                                  <>
+                                    <div className="absolute top-2 right-2">
+                                      <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-pink-600 text-white rounded-full">
+                                        Selected
+                                      </span>
+                                    </div>
+                                    
+                                    {/* Inline Team Selection */}
+                                    <div className="mt-4 pt-3 border-t border-pink-200 dark:border-pink-800">
+                                      <div className="text-xs font-medium text-pink-700 dark:text-pink-300 mb-2">Team Assignment</div>
+                                      <div className="space-y-2">
+                                        {(round.players || []).map((player) => {
+                                          const isTeamA = vegasTeams.teamA.includes(player.playerId);
+                                          const isTeamB = vegasTeams.teamB.includes(player.playerId);
+                                          return (
+                                            <div key={`vegas-inline-${player.playerId}`} className="flex items-center justify-between py-1">
+                                              <div className="flex items-center space-x-2">
+                                                <Avatar className="h-6 w-6">
+                                                  <AvatarFallback className="text-xs">
+                                                    {getPlayerInitials(player.name)}
+                                                  </AvatarFallback>
+                                                </Avatar>
+                                                <span className="text-sm">{player.name}</span>
+                                              </div>
+                                              <div className="flex space-x-1" onClick={(e) => e.stopPropagation()}>
+                                                <Button
+                                                  type="button"
+                                                  variant={isTeamA ? 'default' : 'outline'}
+                                                  size="sm"
+                                                  onClick={() => {
+                                                    if (isTeamA) {
+                                                      setVegasTeams(prev => ({
+                                                        ...prev,
+                                                        teamA: prev.teamA.filter(id => id !== player.playerId)
+                                                      }));
+                                                    } else {
+                                                      setVegasTeams(prev => ({
+                                                        teamA: [...prev.teamA.filter(id => id !== player.playerId), player.playerId],
+                                                        teamB: prev.teamB.filter(id => id !== player.playerId)
+                                                      }));
+                                                    }
+                                                  }}
+                                                  className={`h-6 w-6 p-0 text-xs ${
+                                                    isTeamA 
+                                                      ? 'bg-pink-600 hover:bg-pink-700 text-white' 
+                                                      : 'hover:bg-pink-100 hover:text-pink-600 dark:hover:bg-pink-900'
+                                                  }`}
+                                                >
+                                                  A
+                                                </Button>
+                                                <Button
+                                                  type="button"
+                                                  variant={isTeamB ? 'default' : 'outline'}
+                                                  size="sm"
+                                                  onClick={() => {
+                                                    if (isTeamB) {
+                                                      setVegasTeams(prev => ({
+                                                        ...prev,
+                                                        teamB: prev.teamB.filter(id => id !== player.playerId)
+                                                      }));
+                                                    } else {
+                                                      setVegasTeams(prev => ({
+                                                        teamA: prev.teamA.filter(id => id !== player.playerId),
+                                                        teamB: [...prev.teamB.filter(id => id !== player.playerId), player.playerId]
+                                                      }));
+                                                    }
+                                                  }}
+                                                  className={`h-6 w-6 p-0 text-xs ${
+                                                    isTeamB 
+                                                      ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                                                      : 'hover:bg-blue-100 hover:text-blue-600 dark:hover:bg-blue-900'
+                                                  }`}
+                                                >
+                                                  B
+                                                </Button>
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                      
+                                      {/* Team summary */}
+                                      {(vegasTeams.teamA.length > 0 || vegasTeams.teamB.length > 0) && (
+                                        <div className="grid grid-cols-2 gap-2 mt-3 text-xs">
+                                          <div className="text-center p-1.5 bg-pink-100 dark:bg-pink-900 rounded">
+                                            <span className="font-medium text-pink-700 dark:text-pink-300">A: </span>
+                                            {vegasTeams.teamA.length > 0 
+                                              ? vegasTeams.teamA.map(id => round.players?.find(p => p.playerId === id)?.name?.split(' ')[0]).join(' & ')
+                                              : '—'
+                                            }
+                                          </div>
+                                          <div className="text-center p-1.5 bg-blue-100 dark:bg-blue-900 rounded">
+                                            <span className="font-medium text-blue-700 dark:text-blue-300">B: </span>
+                                            {vegasTeams.teamB.length > 0 
+                                              ? vegasTeams.teamB.map(id => round.players?.find(p => p.playerId === id)?.name?.split(' ')[0]).join(' & ')
+                                              : '—'
+                                            }
+                                          </div>
+                                        </div>
+                                      )}
+                                      
+                                      {vegasTeams.teamA.length !== 2 || vegasTeams.teamB.length !== 2 ? (
+                                        <p className="text-xs text-amber-600 dark:text-amber-400 text-center mt-2">
+                                          Each team needs 2 players
+                                        </p>
+                                      ) : (
+                                        <p className="text-xs text-green-600 dark:text-green-400 text-center mt-2 flex items-center justify-center gap-1">
+                                          <CheckCircle className="h-3 w-3" /> Teams ready
+                                        </p>
+                                      )}
+                                    </div>
+                                  </>
                                 )}
                               </div>
 
-                              {/* Sixes - Hidden for initial launch, will be added back after more iteration */}
-                              {false && (
-                                <div 
+                              {/* Sixes - Hidden for initial launch, will be added back after more iteration
+                              <div 
                                   className={`relative p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 hover:shadow-lg hover:scale-105 ${
                                     selectedGameModes.sixes 
                                       ? 'border-green-500 bg-green-50 dark:bg-green-950 shadow-lg shadow-green-200 dark:shadow-green-900' 
@@ -2806,11 +2793,10 @@ export const NewRoundPage: React.FC = () => {
                                     </div>
                                   )}
                                 </div>
-                              )}
+                              */}
 
-                              {/* Dots - Hidden for initial launch, will be added back after more iteration */}
-                              {false && (
-                                <div 
+                              {/* Dots - Hidden for initial launch, will be added back after more iteration
+                              <div 
                                   className={`relative p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 hover:shadow-lg hover:scale-105 ${
                                     selectedGameModes.dots 
                                       ? 'border-blue-500 bg-blue-50 dark:bg-blue-950 shadow-lg shadow-blue-200 dark:shadow-blue-900' 
@@ -2835,7 +2821,7 @@ export const NewRoundPage: React.FC = () => {
                                     </div>
                                   )}
                                 </div>
-                              )}
+                              */}
 
                               {/* Rolling Strokes removed per configuration */}
 
@@ -3064,19 +3050,25 @@ export const NewRoundPage: React.FC = () => {
 
                                 return (
                                   <div key={gameMode.key} className="space-y-2">
-                                    <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                                      <div className="flex-1">
-                                        <div className="flex items-center justify-between">
-                                          <div className="flex items-center space-x-3">
-                                            <div className="w-2 h-2 bg-primary rounded-full"></div>
-                                            <h4 className="font-medium">{gameMode.name}</h4>
-                                            {gameMode.key === 'snake' && wagersEnabled && (
-                                              <div className="flex space-x-1">
+                                    <div className="flex items-start justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                                      <div className="flex-1 min-w-0 mr-4">
+                                        <div className="flex items-center space-x-2 mb-1">
+                                          <div className="w-2 h-2 bg-primary rounded-full flex-shrink-0"></div>
+                                          <h4 className="font-medium truncate">{gameMode.name}</h4>
+                                        </div>
+                                        <div className="text-sm text-muted-foreground pl-4">
+                                          Sats per {getWagerStructure(gameMode.key)}
+                                          {gameMode.key === 'snake' && snakeVariant === 'progressive' && (
+                                            <span className="text-yellow-600 dark:text-yellow-400"> (progressive {progressiveMultiplier.toFixed(1)}x)</span>
+                                          )}
+                                        </div>
+                                        {gameMode.key === 'snake' && wagersEnabled && (
+                                          <div className="flex space-x-1 mt-2 pl-4">
                                                 <Button
                                                   variant={snakeVariant === 'fixed' ? 'default' : 'outline'}
                                                   size="sm"
                                                   onClick={() => setSnakeVariant('fixed')}
-                                                  className="h-6 px-2 text-xs"
+                                                  className="h-7 px-3 text-xs"
                                                 >
                                                   Fixed
                                                 </Button>
@@ -3084,36 +3076,31 @@ export const NewRoundPage: React.FC = () => {
                                                   variant={snakeVariant === 'progressive' ? 'default' : 'outline'}
                                                   size="sm"
                                                   onClick={() => setSnakeVariant('progressive')}
-                                                  className="h-6 px-2 text-xs"
+                                                  className="h-7 px-3 text-xs"
                                                 >
                                                   Progressive
                                                 </Button>
                                               </div>
-                                            )}
-                                          </div>
-                                          <span className="text-sm text-yellow-600 dark:text-yellow-400 font-medium">
-                                            Sats per {getWagerStructure(gameMode.key)}
-                                          </span>
-                                        </div>
+                                        )}
                                       </div>
                                     {wagersEnabled && (
-                                      <div className="flex items-center space-x-2 ml-4">
+                                      <div className="flex items-center space-x-2 flex-shrink-0">
                                         <Button
                                           variant={currentWagerAmount === '111' ? 'default' : 'outline'}
                                           size="sm"
                                           onClick={() => setGameModeWagerAmount('111')}
-                                          className={`h-7 px-3 text-xs ${currentWagerAmount === '111' ? 'bg-yellow-600 hover:bg-yellow-700' : 'border-yellow-300 text-yellow-700 hover:bg-yellow-50 dark:border-yellow-600 dark:text-yellow-300 dark:hover:bg-yellow-950'}`}
+                                          className={`h-9 px-4 text-sm ${currentWagerAmount === '111' ? 'bg-yellow-600 hover:bg-yellow-700' : 'border-yellow-300 text-yellow-700 hover:bg-yellow-50 dark:border-yellow-600 dark:text-yellow-300 dark:hover:bg-yellow-950'}`}
                                         >
-                                          <Zap className="h-3 w-3 mr-1" />
+                                          <Zap className="h-4 w-4 mr-1" />
                                           111
                                         </Button>
                                         <Button
                                           variant={currentWagerAmount === '1111' ? 'default' : 'outline'}
                                           size="sm"
                                           onClick={() => setGameModeWagerAmount('1111')}
-                                          className={`h-7 px-3 text-xs ${currentWagerAmount === '1111' ? 'bg-yellow-600 hover:bg-yellow-700' : 'border-yellow-300 text-yellow-700 hover:bg-yellow-50 dark:border-yellow-600 dark:text-yellow-300 dark:hover:bg-yellow-950'}`}
+                                          className={`h-9 px-4 text-sm ${currentWagerAmount === '1111' ? 'bg-yellow-600 hover:bg-yellow-700' : 'border-yellow-300 text-yellow-700 hover:bg-yellow-50 dark:border-yellow-600 dark:text-yellow-300 dark:hover:bg-yellow-950'}`}
                                         >
-                                          <Zap className="h-3 w-3 mr-1" />
+                                          <Zap className="h-4 w-4 mr-1" />
                                           1.1k
                                         </Button>
                                         {currentWagerAmount === 'custom' && isEditingCustom ? (
@@ -3134,7 +3121,7 @@ export const NewRoundPage: React.FC = () => {
                                                 setGameModeWagerAmount('111');
                                               }
                                             }}
-                                            className="h-7 w-20 px-2 text-xs border-yellow-300 focus:border-yellow-500 dark:border-yellow-600 dark:focus:border-yellow-400"
+                                            className="h-9 w-24 px-3 text-sm border-yellow-300 focus:border-yellow-500 dark:border-yellow-600 dark:focus:border-yellow-400"
                                             autoFocus
                                           />
                                         ) : (
@@ -3150,11 +3137,11 @@ export const NewRoundPage: React.FC = () => {
                                                 setGameModeWagerAmount('custom');
                                               }
                                             }}
-                                            className={`h-7 px-3 text-xs ${currentWagerAmount === 'custom' ? 'bg-yellow-600 hover:bg-yellow-700' : 'border-yellow-300 text-yellow-700 hover:bg-yellow-50 dark:border-yellow-600 dark:text-yellow-300 dark:hover:bg-yellow-950'}`}
+                                            className={`h-9 px-4 text-sm ${currentWagerAmount === 'custom' ? 'bg-yellow-600 hover:bg-yellow-700' : 'border-yellow-300 text-yellow-700 hover:bg-yellow-50 dark:border-yellow-600 dark:text-yellow-300 dark:hover:bg-yellow-950'}`}
                                           >
                                             {currentWagerAmount === 'custom' && currentCustomAmount && !isEditingCustom ? (
                                               <>
-                                                <Zap className="h-3 w-3 mr-1" />
+                                                <Zap className="h-4 w-4 mr-1" />
                                                 {currentCustomAmount}
                                               </>
                                             ) : (
@@ -3173,7 +3160,9 @@ export const NewRoundPage: React.FC = () => {
                                         const base = currentWagerAmount === 'custom' ? (parseInt(currentCustomAmount) || 0) : (currentWagerAmount === '111' ? 111 : currentWagerAmount === '1111' ? 1111 : 0);
                                         const totalEst = base * holesCount;
                                         return (
-                                          <div className="text-sm text-muted-foreground mt-2">Estimated total: {totalEst.toLocaleString()} sats ({base} × {holesCount} holes)</div>
+                                          <div className="text-sm text-muted-foreground mt-2 pl-4">
+                                            Estimated total: <span className="font-medium">{totalEst.toLocaleString()} sats</span> ({base.toLocaleString()} × {holesCount} holes)
+                                          </div>
                                         );
                                       })()
                                     )}
@@ -3501,6 +3490,7 @@ export const NewRoundPage: React.FC = () => {
           onAddPlayer={handleAddPlayer}
           existingPlayers={round.players || []}
         />
+
         {/* Hole Picker Dialog for + button */}
         <Dialog open={showHolePicker} onOpenChange={setShowHolePicker}>
           <DialogContent className="sm:max-w-[420px]">
@@ -3670,7 +3660,8 @@ export const NewRoundPage: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <Dialog open={showSettlementPreview} onOpenChange={setShowSettlementPreview}>
+
+<Dialog open={showSettlementPreview} onOpenChange={setShowSettlementPreview}>
         <DialogContent className="sm:max-w-[700px]">
           <DialogHeader>
             <DialogTitle>Settlement Preview</DialogTitle>

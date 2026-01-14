@@ -12,7 +12,7 @@ Track scores, settle bets and costs with Lightning, and own your golf data.
 
 ### 📊 Score Tracking
 - **Real-time scoring**
-- **Multiple game modes**: Stroke Play, Match Play, Stableford, Skins, Nassau, Vegas, Sixes, Snake,
+- **Multiple game modes**: Stroke Play, Match Play, Stableford, Skins, Nassau, Vegas, Snake
 - **Pinseekr Cup**: Innovative multi-game tournament format with combined scoring
 - **Handicap support**: Net scoring with automatic adjustments
 

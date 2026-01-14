@@ -163,11 +163,10 @@ function parseEventToCourse(event: NostrEvent): GolfCourse | null {
   }
 }
 
-// Hook for searching public courses with common filters
+// Hook for searching all courses (no tag filter)
 export function usePublicCourses(searchTerm?: string) {
   return useDiscoverCourses({
     name: searchTerm,
-    tags: ['public'], // Look for courses tagged as public
     limit: 100,
   });
 }

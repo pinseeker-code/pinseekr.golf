@@ -39,7 +39,6 @@ const defaultConfig: AppConfig = {
 const presetRelays = [
   { url: 'wss://relay.pinseekr.golf', name: 'Pinseekr (Primary)' },
   { url: 'wss://relay.primal.net', name: 'Primal (Fallback)' },
-  { url: 'wss://relay.nostr.band', name: 'Nostr.Band (Fallback)' },
 ];
 
 // Initialize Bitcoin Connect

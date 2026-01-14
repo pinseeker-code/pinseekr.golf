@@ -41,21 +41,21 @@ func makeHandler(docPath string) http.HandlerFunc {
 				sample := map[string]interface{}{
 					"cache_max_age": 600,
 					"relays": []map[string]interface{}{
-						{"url": "wss://relay.nostr.band", "readable": true, "writable": true, "priority": 1},
-						{"url": "wss://relay.damus.io", "readable": true, "writable": true, "priority": 2},
+						{"url": "wss://relay.damus.io", "readable": true, "writable": true, "priority": 1},
+						{"url": "wss://relay.primal.net", "readable": true, "writable": true, "priority": 2},
 					},
 				}
 				content, _ = json.MarshalIndent(sample, "", "  ")
 			}
 		} else {
 			// no path provided; use sample
-			sample := map[string]interface{}{
-				"cache_max_age": 600,
-				"relays": []map[string]interface{}{
-					{"url": "wss://relay.nostr.band", "readable": true, "writable": true, "priority": 1},
-					{"url": "wss://relay.damus.io", "readable": true, "writable": true, "priority": 2},
-				},
-			}
+				sample := map[string]interface{}{
+					"cache_max_age": 600,
+					"relays": []map[string]interface{}{
+						{"url": "wss://relay.damus.io", "readable": true, "writable": true, "priority": 1},
+						{"url": "wss://relay.primal.net", "readable": true, "writable": true, "priority": 2},
+					},
+				}
 			content, _ = json.MarshalIndent(sample, "", "  ")
 		}
 

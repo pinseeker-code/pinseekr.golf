@@ -31,15 +31,22 @@ interface AddCourseDialogProps {
 interface NineHoleSection {
   name: string; // e.g., "Front 9", "Meadows", "Forest"
   holes: { [hole: number]: number }; // holes 1-9 with their par values
-  handicaps: { [hole: number]: number }; // holes 1-9 with their handicap rankings (1-9)
-  yardages?: { [hole: number]: number }; // yards for each hole in this section
+  handicaps: { [hole: number]: number }; // holes 1-9 with their handicap rankings
+  teeYardages: { [teeName: string]: { [hole: number]: number } }; // per-tee per-hole yardages
 }
+
+// Handicap rating styles for courses with multiple 9s
+type HandicapStyle = 
+  | 'per-nine'      // Each 9 rated independently 1-9 (common for 27/36 hole courses)
+  | 'combined-18'   // Holes rated 1-18 (standard 18-hole rating)
+  | 'sequential';   // All holes rated sequentially (1-27, 1-36, etc.)
 
 interface CourseFormData {
   name: string;
   location: string;
   sections: NineHoleSection[]; // Array of 9-hole sections
-  tees?: { name: string; yardage: number }[];
+  tees: string[]; // tee names (e.g., ["Black", "Blue", "White"])
+  handicapStyle: HandicapStyle; // How handicaps are rated
 }
 
 export function AddCourseDialog({ open, onOpenChange, onCourseAdded, existingCourse }: AddCourseDialogProps) {
@@ -59,12 +66,37 @@ export function AddCourseDialog({ open, onOpenChange, onCourseAdded, existingCou
   // State for drag mode to show visual zones
   const [isDragging, setIsDragging] = useState<{sectionIndex: number, hole: number} | null>(null);
 
-  const getDefaultValues = useCallback(() => {
+  const getDefaultValues = useCallback((): CourseFormData => {
+    const defaultTees = ['Blue', 'White'];
+    
     if (existingCourse) {
       // Convert existing course to section format
       const holes = existingCourse.holes;
       const totalHoles = Object.keys(holes).length;
       const sections: NineHoleSection[] = [];
+      
+      // Get tee names from existing course or use defaults
+      const courseTees = existingCourse.tees && existingCourse.tees.length > 0 
+        ? existingCourse.tees 
+        : defaultTees;
+      
+      // Detect handicap style from existing handicaps
+      let detectedStyle: HandicapStyle = 'combined-18';
+      if (existingCourse.handicaps) {
+        const hcValues = Object.values(existingCourse.handicaps);
+        const maxHc = Math.max(...hcValues);
+        const numSections = Math.ceil(totalHoles / 9);
+        
+        if (maxHc <= 9 && numSections > 1) {
+          // All handicaps are 1-9, likely per-nine rating
+          detectedStyle = 'per-nine';
+        } else if (maxHc > 18) {
+          // Handicaps go above 18, must be sequential
+          detectedStyle = 'sequential';
+        } else {
+          detectedStyle = 'combined-18';
+        }
+      }
       
       // Group holes into 9-hole sections
       for (let sectionStart = 1; sectionStart <= totalHoles; sectionStart += 9) {
@@ -74,19 +106,32 @@ export function AddCourseDialog({ open, onOpenChange, onCourseAdded, existingCou
         
         const sectionHoles: { [hole: number]: number } = {};
         const sectionHandicaps: { [hole: number]: number } = {};
-        const sectionYardages: { [hole: number]: number } = {};
+        const sectionTeeYardages: { [teeName: string]: { [hole: number]: number } } = {};
+        
+        // Initialize tee yardages for each tee
+        for (const teeName of courseTees) {
+          sectionTeeYardages[teeName] = {};
+        }
+        
         for (let hole = sectionStart; hole <= sectionEnd; hole++) {
           const relativeHole = ((hole - 1) % 9) + 1; // Convert to 1-9 within section
           sectionHoles[relativeHole] = holes[hole] || 4;
-          sectionHandicaps[relativeHole] = hole; // Use absolute hole number as default handicap (1-18, 1-27, etc.)
-          sectionYardages[relativeHole] = (existingCourse as unknown as { yardages?: { [hole: number]: number } })?.yardages?.[hole] || 400;
+          sectionHandicaps[relativeHole] = existingCourse.handicaps?.[hole] || hole;
+          
+          // Get per-tee yardages from existing course
+          for (const teeName of courseTees) {
+            const teeYards = existingCourse.teeYardages?.[teeName]?.[hole] 
+              || existingCourse.yardages?.[hole] // fallback to legacy single yardage
+              || 0;
+            sectionTeeYardages[teeName][relativeHole] = teeYards;
+          }
         }
         
         sections.push({
-          name: defaultSectionNames[sectionNumber - 1] || `9-Hole ${sectionNumber}`,
+          name: existingCourse.sections?.[sectionNumber - 1] || defaultSectionNames[sectionNumber - 1] || `9-Hole ${sectionNumber}`,
           holes: sectionHoles,
           handicaps: sectionHandicaps,
-          yardages: sectionYardages
+          teeYardages: sectionTeeYardages
         });
       }
       
@@ -94,27 +139,37 @@ export function AddCourseDialog({ open, onOpenChange, onCourseAdded, existingCou
         name: existingCourse.name,
         location: existingCourse.location,
         sections,
+        tees: courseTees,
+        handicapStyle: detectedStyle,
       };
     }
+    
+    // Default empty course with 2 tees
+    const createEmptyTeeYardages = () => {
+      const teeYardages: { [teeName: string]: { [hole: number]: number } } = {};
+      for (const teeName of defaultTees) {
+        teeYardages[teeName] = Object.fromEntries(Array.from({ length: 9 }, (_, i) => [i + 1, 0]));
+      }
+      return teeYardages;
+    };
+    
     return {
       name: '',
       location: '',
-      tees: [
-        { name: 'Blue', yardage: 6500 },
-        { name: 'White', yardage: 6000 }
-      ],
+      tees: defaultTees,
+      handicapStyle: 'combined-18' as HandicapStyle,
       sections: [
         {
           name: 'Front 9',
           holes: Object.fromEntries(Array.from({ length: 9 }, (_, i) => [i + 1, 4])),
           handicaps: Object.fromEntries(Array.from({ length: 9 }, (_, i) => [i + 1, i + 1])),
-          yardages: Object.fromEntries(Array.from({ length: 9 }, (_, i) => [i + 1, 400]))
+          teeYardages: createEmptyTeeYardages()
         },
         {
           name: 'Back 9', 
           holes: Object.fromEntries(Array.from({ length: 9 }, (_, i) => [i + 1, 4])),
           handicaps: Object.fromEntries(Array.from({ length: 9 }, (_, i) => [i + 1, i + 10])),
-          yardages: Object.fromEntries(Array.from({ length: 9 }, (_, i) => [i + 1, 400]))
+          teeYardages: createEmptyTeeYardages()
         }
       ],
     };
@@ -126,6 +181,7 @@ export function AddCourseDialog({ open, onOpenChange, onCourseAdded, existingCou
 
   const sections = watch('sections');
   const tees = watch('tees') || [];
+  const handicapStyle = watch('handicapStyle') || 'combined-18';
   // (yardage totals computed on demand where needed)
 
   // Reset form when existingCourse changes
@@ -133,17 +189,67 @@ export function AddCourseDialog({ open, onOpenChange, onCourseAdded, existingCou
     reset(getDefaultValues());
   }, [existingCourse, reset, getDefaultValues]);
 
+  // Get the max handicap value based on handicap style
+  const getMaxHandicap = (): number => {
+    switch (handicapStyle) {
+      case 'per-nine':
+        return 9; // Each nine is rated 1-9
+      case 'combined-18':
+        return 18; // Standard 18-hole rating
+      case 'sequential':
+        return sections.length * 9; // All holes rated sequentially
+      default:
+        return 18;
+    }
+  };
+
+  // Get the default handicap for a hole based on style
+  const getDefaultHandicap = (sectionIndex: number, holeInSection: number): number => {
+    switch (handicapStyle) {
+      case 'per-nine':
+        return holeInSection; // 1-9 within each section
+      case 'combined-18':
+        // For 18-hole courses, holes 1-18
+        // For 27+ holes, we need to handle the "extra" 9s
+        if (sections.length <= 2) {
+          return sectionIndex * 9 + holeInSection;
+        }
+        // For 27+ holes with combined-18 style, first two nines get 1-18,
+        // additional nines get their own 1-9 (like a rotation)
+        if (sectionIndex < 2) {
+          return sectionIndex * 9 + holeInSection;
+        }
+        return holeInSection; // Additional nines rated 1-9
+      case 'sequential':
+        return sectionIndex * 9 + holeInSection;
+      default:
+        return sectionIndex * 9 + holeInSection;
+    }
+  };
+
   // Add a new 9-hole section
   const addSection = () => {
     if (sections.length < 4) { // Max 4 sections (36 holes)
       const sectionNumber = sections.length + 1;
       const defaultSectionNames = ["Front 9", "Back 9", "Third 9", "Fourth 9"];
-      const startingHandicap = sections.length * 9 + 1; // Continue handicap sequence from previous sections
+      
+      // Create empty tee yardages for all current tees
+      const teeYardages: { [teeName: string]: { [hole: number]: number } } = {};
+      for (const teeName of tees) {
+        teeYardages[teeName] = Object.fromEntries(Array.from({ length: 9 }, (_, i) => [i + 1, 0]));
+      }
+      
+      // Generate handicaps based on current style
+      const newHandicaps: { [hole: number]: number } = {};
+      for (let i = 1; i <= 9; i++) {
+        newHandicaps[i] = getDefaultHandicap(sections.length, i);
+      }
       
       const newSection: NineHoleSection = {
         name: defaultSectionNames[sectionNumber - 1] || `9-Hole ${sectionNumber}`,
         holes: Object.fromEntries(Array.from({ length: 9 }, (_, i) => [i + 1, 4])),
-        handicaps: Object.fromEntries(Array.from({ length: 9 }, (_, i) => [i + 1, startingHandicap + i]))
+        handicaps: newHandicaps,
+        teeYardages
       };
       
       setValue('sections', [...sections, newSection]);
@@ -227,23 +333,91 @@ export function AddCourseDialog({ open, onOpenChange, onCourseAdded, existingCou
     setValue('sections', newSections);
   };
 
-  // Update hole yardage within a section
-  const updateHoleYardage = (sectionIndex: number, hole: number, newYards: number) => {
+  // Update hole yardage for a specific tee within a section
+  const updateHoleYardage = (sectionIndex: number, teeName: string, hole: number, newYards: number) => {
     const newSections = [...sections];
-    const current = newSections[sectionIndex] || { yardages: {} };
+    const current = newSections[sectionIndex];
+    const currentTeeYardages = current.teeYardages || {};
+    const currentHoleYards = currentTeeYardages[teeName] || {};
+    
     newSections[sectionIndex] = {
       ...current,
-      yardages: { ...(current.yardages || {}), [hole]: newYards }
+      teeYardages: { 
+        ...currentTeeYardages, 
+        [teeName]: { ...currentHoleYards, [hole]: newYards }
+      }
     };
     setValue('sections', newSections);
   };
 
-  // Convert sections back to flat hole structure and extract section names for storage
-  const convertSectionsToHoles = (sections: NineHoleSection[]) => {
+  // Add a new tee
+  const addTee = (teeName: string) => {
+    const newTees = [...tees, teeName];
+    setValue('tees', newTees);
+    
+    // Add empty yardages for the new tee to all sections
+    const newSections = sections.map(section => ({
+      ...section,
+      teeYardages: {
+        ...section.teeYardages,
+        [teeName]: Object.fromEntries(Array.from({ length: 9 }, (_, i) => [i + 1, 0]))
+      }
+    }));
+    setValue('sections', newSections);
+  };
+
+  // Remove a tee
+  const removeTee = (teeIndex: number) => {
+    const teeToRemove = tees[teeIndex];
+    const newTees = tees.filter((_, i) => i !== teeIndex);
+    setValue('tees', newTees);
+    
+    // Remove yardages for this tee from all sections
+    const newSections = sections.map(section => {
+      const { [teeToRemove]: _removed, ...remainingTeeYardages } = section.teeYardages || {};
+      return {
+        ...section,
+        teeYardages: remainingTeeYardages
+      };
+    });
+    setValue('sections', newSections);
+  };
+
+  // Rename a tee
+  const renameTee = (teeIndex: number, newName: string) => {
+    const oldName = tees[teeIndex];
+    if (oldName === newName) return;
+    
+    const newTees = [...tees];
+    newTees[teeIndex] = newName;
+    setValue('tees', newTees);
+    
+    // Rename yardages for this tee in all sections
+    const newSections = sections.map(section => {
+      const { [oldName]: oldYardages, ...remainingTeeYardages } = section.teeYardages || {};
+      return {
+        ...section,
+        teeYardages: {
+          ...remainingTeeYardages,
+          [newName]: oldYardages || {}
+        }
+      };
+    });
+    setValue('sections', newSections);
+  };
+
+  // Convert sections back to flat hole structure for storage
+  const convertSectionsToHoles = (sections: NineHoleSection[], teeNames: string[]) => {
     const holes: { [hole: number]: number } = {};
     const handicaps: { [hole: number]: number } = {};
     const sectionNames: { [sectionIndex: number]: string } = {};
-    const yardages: { [hole: number]: number } = {};
+    const teeYardages: { [teeName: string]: { [hole: number]: number } } = {};
+    
+    // Initialize teeYardages for each tee
+    for (const teeName of teeNames) {
+      teeYardages[teeName] = {};
+    }
+    
     let holeNumber = 1;
     
     sections.forEach((section, sectionIndex) => {
@@ -251,18 +425,20 @@ export function AddCourseDialog({ open, onOpenChange, onCourseAdded, existingCou
       for (let i = 1; i <= 9; i++) {
         if (section.holes[i] !== undefined) {
           holes[holeNumber] = section.holes[i];
-          handicaps[holeNumber] = (section.handicaps && section.handicaps[i]) || i;
-          if (section.yardages && typeof section.yardages[i] !== 'undefined') {
-            yardages[holeNumber] = section.yardages[i];
-          } else {
-            yardages[holeNumber] = 0;
+          handicaps[holeNumber] = section.handicaps?.[i] || i;
+          
+          // Copy per-tee yardages
+          for (const teeName of teeNames) {
+            const yards = section.teeYardages?.[teeName]?.[i] || 0;
+            teeYardages[teeName][holeNumber] = yards;
           }
+          
           holeNumber++;
         }
       }
     });
     
-    return { holes, handicaps, sections: sectionNames, yardages };
+    return { holes, handicaps, sections: sectionNames, teeYardages };
   };
 
   // Calculate total par from sections
@@ -307,14 +483,15 @@ export function AddCourseDialog({ open, onOpenChange, onCourseAdded, existingCou
         }
       }
       // Convert sections to flat hole structure for storage
-      const { holes, sections: sectionNames, yardages } = convertSectionsToHoles(data.sections);
+      const { holes, handicaps, sections: sectionNames, teeYardages } = convertSectionsToHoles(data.sections, data.tees);
       const courseData = {
         name: data.name,
         location: data.location,
         holes,
-        yardages,
+        handicaps,
+        teeYardages,
         sections: sectionNames,
-        tees: data.tees || [],
+        tees: data.tees,
         scorecardImages: uploadedUrls && uploadedUrls.length > 0 ? uploadedUrls : undefined,
         // Pass existing ID to update the same Nostr event instead of creating a new one
         existingId: existingCourse?.id,
@@ -328,9 +505,10 @@ export function AddCourseDialog({ open, onOpenChange, onCourseAdded, existingCou
         name: data.name,
         location: data.location,
         holes,
-        yardages,
+        handicaps,
+        teeYardages,
         sections: sectionNames,
-        tees: data.tees || [],
+        tees: data.tees,
         totalPar: Object.values(holes).reduce((sum, par) => sum + par, 0),
         author: existingCourse?.author || user.pubkey,
         createdAt: existingCourse?.createdAt || Date.now(),
@@ -402,51 +580,38 @@ export function AddCourseDialog({ open, onOpenChange, onCourseAdded, existingCou
 
             {/* Tees */}
             <div className="space-y-2 mt-3">
-              <Label className="text-sm">Tees</Label>
-              <div className="space-y-2">
-                {(tees || []).map((t, idx) => (
-                  <div key={idx} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+              <Label className="text-sm">Tee Boxes</Label>
+              <p className="text-xs text-muted-foreground">Define the tees - yardages are entered per-hole below</p>
+              <div className="flex flex-wrap gap-2">
+                {tees.map((teeName, idx) => (
+                  <div key={idx} className="flex items-center gap-1 bg-muted rounded-md px-2 py-1">
                     <Input
-                      placeholder="Tee name (e.g., Blue)"
-                      value={t?.name || ''}
-                      onChange={(e) => {
-                        const newT = [...(tees || [])];
-                        newT[idx] = { ...newT[idx], name: e.target.value };
-                        setValue('tees', newT);
-                      }}
-                      className="flex-1"
+                      placeholder="Tee name"
+                      value={teeName}
+                      onChange={(e) => renameTee(idx, e.target.value)}
+                      className="w-20 h-7 text-sm px-2 border-0 bg-transparent"
                     />
-                    <Input
-                      type="tel"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      placeholder="Yards"
-                      value={t?.yardage || ''}
-                      onFocus={(e) => (e.target as HTMLInputElement).select()}
-                      onContextMenu={(e) => e.preventDefault()}
-                      translate="no"
-                      style={{ WebkitTouchCallout: 'none' }}
-                      onChange={(e) => {
-                        const newT = [...(tees || [])];
-                        newT[idx] = { ...newT[idx], yardage: parseInt(e.target.value) || 0 };
-                        setValue('tees', newT);
-                      }}
-                      className="w-full sm:w-28 h-10 sm:h-auto"
-                    />
-                    <Button type="button" variant="outline" size="sm" onClick={() => {
-                      const newT = (tees || []).filter((_, i) => i !== idx);
-                      setValue('tees', newT);
-                    }} className="w-full sm:w-auto">Remove</Button>
+                    {tees.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeTee(idx)}
+                        className="text-muted-foreground hover:text-destructive p-0.5"
+                      >
+                        ×
+                      </button>
+                    )}
                   </div>
                 ))}
-
-                <div>
-                  <Button type="button" onClick={() => {
-                    setValue('tees', [...(tees || []), { name: 'New Tee', yardage: 0 }]);
-                  }}>
-                    Add Tee
-                  </Button>
-                </div>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => addTee(`Tee ${tees.length + 1}`)}
+                  className="h-7"
+                >
+                  <Plus className="h-3 w-3 mr-1" />
+                  Add Tee
+                </Button>
               </div>
             </div>
             </div>
@@ -800,24 +965,28 @@ export function AddCourseDialog({ open, onOpenChange, onCourseAdded, existingCou
                             </Popover>
                           </div>
                           
-                          {/* Yardage Input */}
-                          <div className="flex flex-col items-center">
-                            <Label className="text-[10px] sm:text-xs text-muted-foreground">Yds</Label>
-                            <Input
-                              type="tel"
-                              inputMode="numeric"
-                              pattern="[0-9]*"
-                              min="0"
-                              value={(section.yardages && section.yardages[hole]) || ''}
-                              onFocus={(e) => (e.target as HTMLInputElement).select()}
-                              onContextMenu={(e) => e.preventDefault()}
-                              translate="no"
-                              style={{ WebkitTouchCallout: 'none' }}
-                              onChange={(e) => updateHoleYardage(sectionIndex, hole, parseInt(e.target.value) || 0)}
-                              placeholder="0"
-                              className="w-10 sm:w-12 h-10 sm:h-7 text-xs text-center px-0.5 sm:px-1 py-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                            />
-                          </div>
+                          {/* Per-Tee Yardage Inputs */}
+                          {tees.map((teeName) => (
+                            <div key={teeName} className="flex flex-col items-center">
+                              <Label className="text-[10px] sm:text-xs text-muted-foreground truncate max-w-[40px]" title={teeName}>
+                                {teeName.slice(0, 4)}
+                              </Label>
+                              <Input
+                                type="tel"
+                                inputMode="numeric"
+                                pattern="[0-9]*"
+                                min="0"
+                                value={section.teeYardages?.[teeName]?.[hole] || ''}
+                                onFocus={(e) => (e.target as HTMLInputElement).select()}
+                                onContextMenu={(e) => e.preventDefault()}
+                                translate="no"
+                                style={{ WebkitTouchCallout: 'none' }}
+                                onChange={(e) => updateHoleYardage(sectionIndex, teeName, hole, parseInt(e.target.value) || 0)}
+                                placeholder="0"
+                                className="w-10 sm:w-12 h-10 sm:h-7 text-xs text-center px-0.5 sm:px-1 py-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              />
+                            </div>
+                          ))}
                           
                           {/* Handicap Input */}
                           <div className="flex flex-col items-center">
@@ -827,15 +996,17 @@ export function AddCourseDialog({ open, onOpenChange, onCourseAdded, existingCou
                               inputMode="numeric"
                               pattern="[0-9]*"
                               min="1"
-                              max={totalHoles}
-                              value={(section.handicaps && section.handicaps[hole]) || (sectionIndex * 9 + hole)}
+                              max={getMaxHandicap()}
+                              value={(section.handicaps && section.handicaps[hole]) || getDefaultHandicap(sectionIndex, hole)}
                               onFocus={(e) => (e.target as HTMLInputElement).select()}
                               onContextMenu={(e) => e.preventDefault()}
                               translate="no"
                               style={{ WebkitTouchCallout: 'none' }}
                               onChange={(e) => {
-                                const value = parseInt(e.target.value) || (sectionIndex * 9 + hole);
-                                updateHoleHandicap(sectionIndex, hole, Math.max(1, Math.min(totalHoles, value)));
+                                const maxHc = getMaxHandicap();
+                                const defaultHc = getDefaultHandicap(sectionIndex, hole);
+                                const value = parseInt(e.target.value) || defaultHc;
+                                updateHoleHandicap(sectionIndex, hole, Math.max(1, Math.min(maxHc, value)));
                               }}
                               className="w-9 sm:w-10 h-10 sm:h-7 text-xs text-center px-0.5 sm:px-1 py-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             />

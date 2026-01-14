@@ -292,7 +292,7 @@ The app uses a **Grain relay** as the primary relay, with a fallback for discove
 - `wss://relay.pinseekr.golf` - Self-hosted Grain relay on Umbrel
 
 **Fallback Relay:**
-- `wss://relay.nostr.band` - Backup for discovery
+- `wss://relay.primal.net` - Backup for discovery
 
 ### Relay Discovery
 

@@ -477,7 +477,7 @@ export const NewRoundPage: React.FC = () => {
     wolf: { key: 'wolf', name: 'Wolf', description: 'Strategic game with rotating roles and partnerships', rules: 'Players rotate being the "Wolf" each hole. Wolf tees off last and chooses a partner after seeing everyone\'s drive, or plays alone ("Lone Wolf") for double points. Wolf & partner vs other two players. Points awarded: Win = +2pts each, Lose = -1pt each. Lone Wolf wins = +4pts, Lone Wolf loses = -2pts. Most points after 18 holes wins.' },
     vegas: { key: 'vegas', name: 'Vegas', description: 'Two-person teams with combined scoring', rules: 'Two teams of 2 players each. Combine teammates\' scores by concatenating them (not adding). Lower score goes first. Example: Team A scores 4 and 5 = 45, Team B scores 3 and 6 = 36. Team B wins the hole. If a player shoots 10+, flip the scores (45 vs 63 becomes 54 vs 36). Play for points per hole.' },
     sixes: { key: 'sixes', name: 'Sixes', description: 'Rotating partnerships every 6 holes', rules: 'Players rotate partnerships every 6 holes, creating different team matchups throughout the round. Partners play best ball (take the better score) against the remaining players. Each 6-hole segment awards points to the winning team. Individual scores tracked separately. Works well with 3+ players for competitive team play with changing alliances.' },
-    dots: { key: 'dots', name: 'Dots', description: 'Par-based game with bonus points for birdies', rules: 'Earn dots (points) for achievements: Fairway hit = 1 dot, Green in regulation = 1 dot, One putt = 1 dot, Birdie = 2 dots, Eagle = 5 dots. Lose dots: Double bogey = -1 dot. Add up dots for each hole. Most dots wins. Rewards consistent, solid golf play across all aspects of the game.' },
+    // 'Dots' game removed from visible UI for initial launch (engine retained)
     snake: { key: 'snake', name: 'Snake', description: 'Progressive Wager (penalty increases as more three-putts are made by the group)', rules: 'One player holds the "Snake". When a player three-putts, the Snake is passed to them. The player holding the Snake at the end of the round pays a penalty to other players. In Fixed mode, penalty is a set amount. In Progressive mode, the penalty multiplies with each transfer (default 1.1x). Most three-putts = biggest penalty.' }
   };
 
@@ -3330,11 +3330,16 @@ export const NewRoundPage: React.FC = () => {
                                 <SelectValue placeholder="Select tee box" />
                               </SelectTrigger>
                               <SelectContent>
-                                {selectedCourse.tees.map((t) => (
-                                  <SelectItem key={`${t.name}-${t.yardage}`} value={`${t.name}||${t.yardage}`}>
-                                    {t.name} • {t.yardage.toLocaleString()} yd
-                                  </SelectItem>
-                                ))}
+                                {selectedCourse.tees.map((teeName) => {
+                                  const totalYards = selectedCourse.teeYardages?.[teeName]
+                                    ? Object.values(selectedCourse.teeYardages[teeName]).reduce((sum, y) => sum + (y || 0), 0)
+                                    : 0;
+                                  return (
+                                    <SelectItem key={teeName} value={`${teeName}||${totalYards}`}>
+                                      {teeName}{totalYards > 0 ? ` • ${totalYards.toLocaleString()} yd` : ''}
+                                    </SelectItem>
+                                  );
+                                })}
                               </SelectContent>
                             </Select>
                           ) : (

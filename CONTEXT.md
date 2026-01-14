@@ -781,11 +781,11 @@ The project includes an `AppProvider` that manages global application state incl
 ```typescript
 const defaultConfig: AppConfig = {
   theme: "light",
-  relayUrl: "wss://relay.nostr.band",
+  relayUrl: "wss://relay.pinseekr.golf",
 };
 ```
 
-Preset relays are available including Ditto, Nostr.Band, Damus, and Primal. The app uses local storage to persist user preferences.
+Preset relays are available including Ditto, Damus, and Primal. The app uses local storage to persist user preferences.
 
 ## Routing
 

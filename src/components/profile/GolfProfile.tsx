@@ -10,7 +10,7 @@ import {
   Trophy, 
  
   Edit, 
-  UserPlus, 
+  UserPlus,
   MessageCircle,
   MoreHorizontal 
 } from 'lucide-react';
@@ -152,7 +152,7 @@ export function GolfProfile({ profile, metadata, isOwn, className }: GolfProfile
       <ProfileHeader 
         profile={profile} 
         metadata={metadata} 
-        isOwn={actualIsOwn} 
+        isOwn={actualIsOwn}
       />
       
       {/* Stats and Badges Grid */}

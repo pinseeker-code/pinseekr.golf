@@ -234,12 +234,18 @@ function CourseCard({ course, isSelected, onSelect, showAuthor }: CourseCardProp
                 </Badge>
               )}
               {course.tees && course.tees.length > 0 && (
-                <div className="flex items-center gap-1">
-                  {course.tees.map(t => (
-                    <Badge key={`${t.name}-${t.yardage}`} variant="secondary" className="text-xs">
-                      {t.name} {t.yardage}yd
-                    </Badge>
-                  ))}
+                <div className="flex items-center gap-1 flex-wrap">
+                  {course.tees.map(teeName => {
+                    // Calculate total yardage for this tee
+                    const totalYards = course.teeYardages?.[teeName] 
+                      ? Object.values(course.teeYardages[teeName]).reduce((sum, y) => sum + (y || 0), 0)
+                      : 0;
+                    return (
+                      <Badge key={teeName} variant="secondary" className="text-xs">
+                        {teeName}{totalYards > 0 ? ` ${totalYards}yd` : ''}
+                      </Badge>
+                    );
+                  })}
                 </div>
               )}
             </div>

@@ -16,22 +16,7 @@ const isMobile = () => /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera
 const isAndroid = () => /Android/i.test(navigator.userAgent);
 const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent);
 
-interface NostrEvent {
-  kind: number;
-  tags: string[][];
-  content: string;
-  created_at: number;
-  pubkey: string;
-}
-
-declare global {
-  interface Window {
-    nostr?: {
-      getPublicKey(): Promise<string>;
-      signEvent(event: NostrEvent): Promise<NostrEvent>;
-    };
-  }
-}
+// Window.nostr type is now provided by @nostr-dev-kit/ndk
 
 export function NostrAuth({ onAuth, className }: NostrAuthProps) {
   const [userPubkey, setUserPubkey] = useState<string | null>(null);

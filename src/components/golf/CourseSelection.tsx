@@ -55,11 +55,16 @@ export function CourseSelection({ selectedCourse, onSelectCourse, className, all
               </div>
               {selectedCourse.tees && selectedCourse.tees.length > 0 && (
                 <div className="flex items-center gap-2 mt-2 flex-wrap">
-                  {selectedCourse.tees.map((t) => (
-                    <Badge key={`${t.name}-${t.yardage}`} variant="outline" className="text-xs">
-                      {t.name} • {t.yardage.toLocaleString()} yd
-                    </Badge>
-                  ))}
+                  {selectedCourse.tees.map((teeName) => {
+                    const totalYards = selectedCourse.teeYardages?.[teeName]
+                      ? Object.values(selectedCourse.teeYardages[teeName]).reduce((sum, y) => sum + (y || 0), 0)
+                      : 0;
+                    return (
+                      <Badge key={teeName} variant="outline" className="text-xs">
+                        {teeName}{totalYards > 0 ? ` • ${totalYards.toLocaleString()} yd` : ''}
+                      </Badge>
+                    );
+                  })}
                 </div>
               )}
               {selectedCourse.description && (

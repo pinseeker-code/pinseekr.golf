@@ -229,15 +229,19 @@ export function convertToMatchData(players: Array<{ playerId: string; scores: nu
   const strokes: { [playerId: string]: { [hole: number]: number } } = {};
   const handicapPops: { [playerId: string]: { [hole: number]: number } } = {};
 
-  // Convert scores to hole-by-hole format
+  // Convert scores to hole-by-hole format and calculate handicap pops
   players.forEach(player => {
     strokes[player.playerId] = {};
     handicapPops[player.playerId] = {};
+    const hcp = player.handicap || 0;
     
     player.scores.forEach((score, index) => {
       const hole = index + 1;
       strokes[player.playerId][hole] = score;
-      handicapPops[player.playerId][hole] = 0; // Will be calculated based on handicap
+      // Calculate handicap strokes: base strokes + extra stroke if hole index <= remainder
+      // Distributes handicap strokes evenly: handicap 10 = 1 stroke on holes 1-10
+      // Handicap 20 = 1 stroke on all holes + 1 more on holes 1-2
+      handicapPops[player.playerId][hole] = Math.floor(hcp / 18) + (hole <= (hcp % 18) ? 1 : 0);
     });
   });
 

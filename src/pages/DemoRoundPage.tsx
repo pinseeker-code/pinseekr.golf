@@ -312,6 +312,10 @@ export const DemoRoundPage: React.FC = () => {
                       <span className="text-purple-500">★</span>
                       <span>Click <strong>Finish Round</strong> to see the summary</span>
                     </div>
+                    <div className="flex items-start gap-2">
+                      <span className="text-blue-500">💰</span>
+                      <span>Try <strong>Split Costs</strong> at the bottom to add expenses</span>
+                    </div>
                   </div>
                   <div className="pt-2">
                     <div className="text-xs text-gray-500 mb-2">Active game modes:</div>

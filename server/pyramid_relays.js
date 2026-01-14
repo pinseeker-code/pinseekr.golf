@@ -15,8 +15,8 @@ app.use((req, res, next) => {
     const sample = {
       cache_max_age: 600,
       relays: [
-        { url: 'wss://relay.nostr.band', readable: true, writable: true, priority: 1 },
-        { url: 'wss://relay.damus.io', readable: true, writable: true, priority: 2 },
+        { url: 'wss://relay.damus.io', readable: true, writable: true, priority: 1 },
+        { url: 'wss://relay.primal.net', readable: true, writable: true, priority: 2 },
       ],
     };
     const content = JSON.stringify(sample, null, 2);

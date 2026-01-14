@@ -9,7 +9,7 @@ if (args.length === 0) {
 const eventId = args[0];
 const relays = [
   'wss://relay.pinseekr.golf',
-  'wss://relay.nostr.band'
+  'wss://relay.primal.net'
 ];
 
 async function checkRelay(url) {

@@ -585,10 +585,14 @@ export function processRoundWagers(
   const data: ScoreData = {};
   
   for (const player of players) {
-    // Calculate net scores if needed
-    const netScores = player.scores.map(score => 
-      Math.max(0, score - Math.floor(player.handicap / 18))
-    );
+    // Calculate net scores with proper handicap distribution per hole
+    // Handicap strokes are distributed: floor(hcp/18) per hole + 1 extra on holes 1 to (hcp % 18)
+    const hcp = player.handicap || 0;
+    const netScores = player.scores.map((score, index) => {
+      const hole = index + 1;
+      const strokesGiven = Math.floor(hcp / 18) + (hole <= (hcp % 18) ? 1 : 0);
+      return Math.max(0, score - strokesGiven);
+    });
     
     data[player.playerId] = {
       scores: player.scores || Array(18).fill(0),

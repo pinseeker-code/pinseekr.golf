@@ -6,7 +6,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { LoginArea } from '@/components/auth/LoginArea';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Users, Zap, Trophy, BarChart3, User, Code } from 'lucide-react';
+
+// Developer profile info for "Vibed by" section
+const DEVELOPER = {
+  npub: 'npub12sl626zucwnkqwxnkm5y5knlnxycn2cx8vy3dhfghccqxvnkxvuqfy6dme',
+  name: 'Pinseekr',
+  picture: 'https://yt3.googleusercontent.com/K1EFE5qDKlP3SMP4eruEZNK5mpM6MULLo5ogfoaggcQSx_4EUF_wXJbw1ebEUymFv_mQcUVoVAY=s160-c-k-c0x00ffffff-no-rj',
+  lud16: 'pinseekr@npub.cash',
+};
 
 const Index = () => {
   const { user } = useCurrentUser();
@@ -45,7 +54,7 @@ const Index = () => {
             The Future of Golf Scoring
           </h1>
           <p className="text-lg sm:text-xl text-gray-600 dark:text-gray-300 mb-8 max-w-3xl mx-auto">
-            Track scoring and handicap, split costs and settle wagers with Lightning, discover new game modes. Built on Nostr.
+            Track scoring and stats, split costs and settle wagers with Lightning. Golf decentralized—built on Nostr.
           </p>
           <div className="flex flex-col sm:flex-row justify-center gap-4 sm:space-x-4">
             {user ? (
@@ -81,16 +90,16 @@ const Index = () => {
               </Link>
             </CardHeader>
             <CardContent>
-              <CardDescription>
-                Select game modes, set wagers, record scores. Sats calculated automatically and settled with Lightning.
-              </CardDescription>
-              <div className="mt-4">
+              <div className="mb-3">
                 <Link to="/demo">
                   <Button variant="outline" size="sm" className="text-xs">
                     Try Interactive Demo
                   </Button>
                 </Link>
               </div>
+              <CardDescription>
+                Try out a demo of the scoring page and expense input.
+              </CardDescription>
             </CardContent>
           </Card>
 
@@ -127,6 +136,9 @@ const Index = () => {
               <CardDescription>
                 Earn badges for hole-in-ones, breaking 90, eagles, and other golf milestones.
               </CardDescription>
+              <p className="mt-3 text-xs text-muted-foreground">
+                Note: This is currently a proof of concept — badges and reputational features are experimental.
+              </p>
                 <div className="mt-4">
                   <Link to="/achievements">
                     <Button variant="outline" size="sm">
@@ -177,12 +189,7 @@ const Index = () => {
                     Head-to-head competition where you win or lose individual holes, not total strokes. First to be "up" by more holes than remain wins the match. Used in the Ryder Cup and many tournaments.
                   </p>
                 </div>
-                <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
-                  <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">Dots</h3>
-                  <p className="text-blue-700 dark:text-blue-300 text-sm">
-                    Earn points for achieving specific goals: birdies, pars, closest to pin, longest drive. At the end, points are converted to cash payouts. Great for rewarding different types of good golf.
-                  </p>
-                </div>
+                {/* Dots card removed from UI per request (engine retained) */}
                 <div className="p-4 bg-green-50 dark:bg-green-950 rounded-lg border border-green-200 dark:border-green-800">
                   <h3 className="font-semibold text-green-900 dark:text-green-100 mb-2">Snake</h3>
                     <p className="text-green-700 dark:text-green-300 text-sm">
@@ -246,20 +253,33 @@ const Index = () => {
           </CardContent>
         </Card>
 
-        {/* Vibed with MKStack */}
+        {/* Vibed by section */}
         <div className="text-center py-8">
-          <p className="text-gray-500 dark:text-gray-400">
-            Vibed with{' '}
+          <p className="text-gray-500 dark:text-gray-400 mb-4">Vibed by:</p>
+          <div className="flex flex-col items-center gap-4">
+            {/* Developer Profile Badge */}
             <a
-              href="https://soapbox.pub/mkstack"
+              href={`https://njump.me/${DEVELOPER.npub}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline"
+              className="flex items-center gap-3 px-4 py-2 rounded-full bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
             >
-              MKStack
+              <Avatar className="h-10 w-10">
+                <AvatarImage src={DEVELOPER.picture} alt={DEVELOPER.name} />
+                <AvatarFallback>{DEVELOPER.name[0]}</AvatarFallback>
+              </Avatar>
+              <span className="font-medium text-gray-900 dark:text-gray-100">{DEVELOPER.name}</span>
             </a>
-          </p>
+            {/* Zap Button */}
+            <a
+              href={`lightning:${DEVELOPER.lud16}`}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-medium transition-colors"
+            >
+              <Zap className="h-4 w-4" />
+              Zap
+            </a>
           </div>
+        </div>
         </MobileContainer>
       </main>
     </div>

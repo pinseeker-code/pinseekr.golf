@@ -1,7 +1,7 @@
 // NOTE: This file is stable and usually should not be modified.
 // It is important that all functionality in this file is preserved, and should only be modified if explicitly requested.
 
-import { ChevronDown, LogOut, Settings, Zap, Wifi, WifiOff } from 'lucide-react';
+import { ChevronDown, LogOut, Settings, Zap } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,7 +18,7 @@ import { useOfflineRound } from '@/hooks/useOfflineRound';
 
 export function AccountSwitcher() {
   const { currentUser, removeLogin } = useLoggedInAccounts();
-  const { connected, outboxCount } = useOfflineRound();
+  const { outboxCount } = useOfflineRound();
 
   if (!currentUser) return null;
 
@@ -28,17 +28,10 @@ export function AccountSwitcher() {
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <button className='flex items-center gap-3 p-3 rounded-full transition-all w-full text-foreground bg-purple-100 text-purple-700 hover:bg-purple-600 hover:text-white active:bg-purple-700 dark:bg-purple-900/30 dark:text-purple-300 dark:hover:bg-purple-600 dark:hover:text-white'>
-          <div className="relative">
-            <Avatar className='w-10 h-10'>
-              <AvatarImage src={currentUser.metadata.picture} alt={displayName} />
-              <AvatarFallback>{displayName.charAt(0)}</AvatarFallback>
-            </Avatar>
-            {/* Online status indicator dot */}
-            <span
-              className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white dark:border-gray-900 ${connected ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`}
-              aria-label={connected ? 'Online' : 'Offline'}
-            />
-          </div>
+          <Avatar className='w-10 h-10'>
+            <AvatarImage src={currentUser.metadata.picture} alt={displayName} />
+            <AvatarFallback>{displayName.charAt(0)}</AvatarFallback>
+          </Avatar>
           <div className='flex-1 text-left hidden md:block truncate'>
             <p className='font-medium text-sm truncate'>{displayName}</p>
           </div>
@@ -46,20 +39,17 @@ export function AccountSwitcher() {
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className='w-56 p-2 animate-scale-in'>
-        {/* Connection status */}
-        <div className='flex items-center gap-2 px-2 py-1.5 text-sm text-muted-foreground'>
-          {connected ? (
-            <><Wifi className='w-4 h-4 text-green-500' /><span>Online</span></>
-          ) : (
-            <><WifiOff className='w-4 h-4 text-red-500' /><span>Offline</span></>
-          )}
-          {outboxCount > 0 && (
-            <span className='ml-auto text-xs px-1.5 py-0.5 bg-amber-500 text-white rounded-full'>
-              {outboxCount} pending
-            </span>
-          )}
-        </div>
-        <DropdownMenuSeparator />
+        {/* Pending sync indicator */}
+        {outboxCount > 0 && (
+          <>
+            <div className='flex items-center gap-2 px-2 py-1.5 text-sm text-muted-foreground'>
+              <span className='text-xs px-1.5 py-0.5 bg-amber-500 text-white rounded-full'>
+                {outboxCount} pending sync
+              </span>
+            </div>
+            <DropdownMenuSeparator />
+          </>
+        )}
         <DropdownMenuItem asChild>
           <Link to="/account" className='flex items-center gap-2 cursor-pointer p-2 rounded-md'>
             <Settings className='w-4 h-4' />

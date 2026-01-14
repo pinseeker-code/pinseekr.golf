@@ -62,7 +62,7 @@ export interface PlayerInRound {
     fairways?: boolean;
     fairwayMissDepth?: MissDepth;
     fairwayMissSide?: MissSide;
-    greens?: boolean;
+    greens?: boolean | 'unreachable';
     greenMissDepth?: MissDepth;
     greenMissSide?: MissSide;
     chips?: number;
@@ -85,7 +85,7 @@ export interface HoleScore {
   fairways: boolean;
   fairwayMissDepth?: MissDepth;
   fairwayMissSide?: MissSide;
-  greens: boolean;
+  greens: boolean | 'unreachable';
   greenMissDepth?: MissDepth;
   greenMissSide?: MissSide;
   chips: number;

@@ -2,13 +2,13 @@
   "cache_max_age": 600,
   "relays": [
     {
-      "url": "wss://relay.nostr.band",
+      "url": "wss://relay.damus.io",
       "readable": true,
       "writable": true,
       "priority": 1
     },
     {
-      "url": "wss://relay.damus.io",
+      "url": "wss://relay.primal.net",
       "readable": true,
       "writable": true,
       "priority": 2

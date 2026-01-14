@@ -14,11 +14,13 @@ import {
   CheckCircle, 
   XCircle,
   Plus,
-  
+  Receipt,
 } from 'lucide-react';
 import { snakeEngine } from '@/lib/golf/snakeEngine';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { CostSplitDialog } from '@/components/golf/CostSplitDialog';
+import type { Expense } from '@/lib/golf/expenseTypes';
 
 interface ScoreCardProps {
   round: GolfRound;
@@ -48,6 +50,8 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({
   const [manualInput, setManualInput] = useState<{ field: string; value: string }>({ field: '', value: '' });
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
+  const [showCostSplit, setShowCostSplit] = useState(false);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
 
   const isMobile = useIsMobile();
 
@@ -182,7 +186,7 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({
   React.useEffect(() => {
     try {
       window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
-    } catch (e) {
+    } catch {
       // ignore in non-browser environments
     }
   }, []);
@@ -1305,6 +1309,14 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({
         </div>
 
         <div className="flex space-x-2">
+          <Button 
+            variant="outline" 
+            onClick={() => setShowCostSplit(true)} 
+            className="flex-1 border-purple-300 text-white hover:bg-white/10"
+          >
+            <Receipt className="mr-2 h-4 w-4" />
+            Split Costs
+          </Button>
           {onShareRound && (
             <Button variant="outline" onClick={onShareRound} className="flex-1 border-purple-300 text-white hover:bg-white/10">
               <Share2 className="mr-2 h-4 w-4" />
@@ -1317,6 +1329,15 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({
           </Button>
         </div>
       </div>
+
+      {/* Cost Split Dialog */}
+      <CostSplitDialog
+        open={showCostSplit}
+        onOpenChange={setShowCostSplit}
+        players={round.players.map(p => ({ playerId: p.playerId, name: p.name }))}
+        expenses={expenses}
+        onExpensesChange={setExpenses}
+      />
     </div>
   );
 };

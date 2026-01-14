@@ -29,17 +29,28 @@ This document provides a high-level overview of how the Pinseekr golf app uses t
 | **4** | Encrypted DM | Encrypted round invites (legacy, compatibility) | `NewRoundPage.tsx` |
 | **1111** | Comment | NIP-22 threaded comments | `useComments.ts`, `usePostComment.ts` |
 
-### Custom Golf Kinds (Addressable: 30000–39999)
+### Custom Golf Kinds (369xx block)
+
+All Pinseekr custom kinds use the **369xx** prefix for consistency.
 
 | Kind | Name | Description | Hook/File |
 |------|------|-------------|-----------|
-| **36905** | Settlement Result | Round settlement with payment info and invoices | `NewRoundPage.tsx` |
-| **36907** | Tournament | Tournament/wager events for Pinseekr Cup | `NewRoundPage.tsx` |
-| **36909** | Player Score | Per-player score updates for a round (addressable by `d` tag) | Defined in `NIP.md` |
-| **36910** | Invite Accept | Signed proof that a player accepted a round invite | Defined in `NIP.md` |
-| **36908** | Golf Course | Golf course data (name, location, hole pars) | `useGolfCourses.ts`, `useDiscoverCourses.ts` |
-| **30382** | Golf Profile | Player golf profile (stats, handicap, badges, achievements) | `useGolfProfile.ts`, `social.ts` |
-| **31924** | Golf Round | Complete round event (scores, participants, course data) | `social.ts` |
+| **36901** | Golf Round | Round container (who, where, when, scorecard images) | `types.ts`, `NewRoundPage.tsx` |
+| **36902** | Golf Course | Course definition (holes, pars, yardages) | `useGolfCourses.ts`, `useDiscoverCourses.ts` |
+| **36903** | Player Score | Per-player scores for a round (addressable, updates in place) | `types.ts` |
+| **36904** | Golf Profile | User's handicap, preferences, visibility | `useGolfProfile.ts` |
+| **36905** | Tournament | Multi-round competition / Pinseekr Cup | `NewRoundPage.tsx` |
+| **36910** | Badge Award | Badge achievement awards | `types.ts` |
+
+### Deprecated Kinds (read-only compatibility)
+
+| Kind | Name | Replaced By |
+|------|------|-------------|
+| 36802 | Hole | `PLAYER_SCORE` (36903) |
+| 36803 | Player | `ROUND` + `PLAYER_SCORE` |
+| 36804 | Game | `ROUND` tags |
+| 36805 | Result | `ROUND` status tag |
+| 36806 | Invite Accept | Deprecated |
 
 ---
 
@@ -101,93 +112,40 @@ Threaded comments that can be attached to any event or URL.
 
 ---
 
-### Kind 36905: Settlement Result
-Published after a round to record payment settlements.
+### Kind 36901: Golf Round
+Round container event with participants, course info, and scorecard images.
 
 **Structure:**
 ```json
 {
-  "kind": 36905,
+  "kind": 36901,
   "tags": [
-    ["d", "<roundId>-result"],
+    ["d", "<round-id>"],
+    ["title", "Saturday Round at Pebble"],
+    ["start", "<unix-timestamp>"],
+    ["end", "<unix-timestamp>"],
+    ["location", "Pebble Beach, CA"],
+    ["participants", "<pubkey1>", "<pubkey2>"],
+    ["scores", "<JSON scores>"],
+    ["course_data", "<JSON course info>"],
     ["t", "golf"],
-    ["t", "settlement"],
-    ["round", "<roundId>"]
-  ],
-  "content": "{\"payments\": [...], \"invoices\": [...], \"note\": \"...\"}"
-}
-```
-
-**Files:** `NewRoundPage.tsx`
-
----
-
-### Kind 36907: Tournament
-Tournament configuration and wager information for Pinseekr Cup games.
-
-**Structure:**
-```json
-{
-  "kind": 36907,
-  "tags": [
-    ["d", "<roundId>-tournament"],
-    ["t", "golf"],
-    ["t", "tournament"],
-    ["t", "pinseekr-cup"]
-  ],
-  "content": "{\"tournament\": {...}, \"wagers\": {...}, \"tournamentTotal\": 1500, \"invoicePlaceholders\": [...]}"
-}
-```
-
-**Files:** `NewRoundPage.tsx`
-
----
-
-### Kind 30010: Player Score
-Per-player score updates for a specific round. Addressable so relays keep only the latest per pubkey+kind+d-tag.
-
-**Structure:**
-```json
-{
-  "kind": 30010,
-  "tags": [
-    ["d", "<roundId>"],
-    ["player", "<playerPubkey>"]
-  ],
-  "content": "{\"scores\": {\"1\": 4, \"2\": 3, ...}, \"total\": 36, \"updatedAt\": 1690000000000}"
-}
-```
-
-**Files:** Defined in `NIP.md`
-
----
-
-### Kind 30011: Invite Accept
-Signed proof that a player accepted an invite to join a round.
-
-**Structure:**
-```json
-{
-  "kind": 30011,
-  "tags": [
-    ["d", "<roundId>"],
-    ["action", "join"]
+    ["t", "round"]
   ],
   "content": ""
 }
 ```
 
-**Files:** Defined in `NIP.md`
+**Files:** `types.ts`, `NewRoundPage.tsx`
 
 ---
 
-### Kind 36908: Golf Course
+### Kind 36902: Golf Course
 Golf course database entries with hole-by-hole par information.
 
 **Structure:**
 ```json
 {
-  "kind": 36908,
+  "kind": 36902,
   "tags": [
     ["d", "<course-slug>"],
     ["name", "Pebble Beach Golf Links"],
@@ -215,13 +173,32 @@ Golf course database entries with hole-by-hole par information.
 
 ---
 
-### Kind 30382: Golf Profile
+### Kind 36903: Player Score
+Per-player score updates for a specific round. Addressable so relays keep only the latest per pubkey+kind+d-tag.
+
+**Structure:**
+```json
+{
+  "kind": 36903,
+  "tags": [
+    ["d", "<roundId>"],
+    ["player", "<playerPubkey>"]
+  ],
+  "content": "{\"scores\": {\"1\": 4, \"2\": 3, ...}, \"total\": 36, \"updatedAt\": 1690000000000}"
+}
+```
+
+**Files:** `types.ts`
+
+---
+
+### Kind 36904: Golf Profile
 Player golf profile with stats, handicap, badges, and achievements.
 
 **Structure:**
 ```json
 {
-  "kind": 30382,
+  "kind": 36904,
   "tags": [
     ["d", "golf-profile"],
     ["name", "John Doe"],
@@ -241,34 +218,49 @@ Player golf profile with stats, handicap, badges, and achievements.
 - `fairwayHitPercentage`, `greenInRegulationPercentage`
 - `averagePutts`, `holesInOne`, `eagles`, `birdies`, `pars`, `bogeys`
 
-**Files:** `useGolfProfile.ts`, `social.ts`
+**Files:** `useGolfProfile.ts`
 
 ---
 
-### Kind 31924: Golf Round
-Complete round event with participants, scores, and course data.
+### Kind 36905: Tournament
+Tournament configuration and wager information for Pinseekr Cup games.
 
 **Structure:**
 ```json
 {
-  "kind": 31924,
+  "kind": 36905,
   "tags": [
-    ["d", "<round-id>"],
-    ["title", "Saturday Round at Pebble"],
-    ["start", "<unix-timestamp>"],
-    ["end", "<unix-timestamp>"],
-    ["location", "Pebble Beach, CA"],
-    ["participants", "<pubkey1>", "<pubkey2>"],
-    ["scores", "<JSON scores>"],
-    ["course_data", "<JSON course info>"],
+    ["d", "<roundId>-tournament"],
     ["t", "golf"],
-    ["t", "round"]
+    ["t", "tournament"],
+    ["t", "pinseekr-cup"]
   ],
-  "content": ""
+  "content": "{\"tournament\": {...}, \"wagers\": {...}, \"tournamentTotal\": 1500}"
 }
 ```
 
-**Files:** `social.ts`
+**Files:** `NewRoundPage.tsx`
+
+---
+
+### Kind 36910: Badge Award
+Badge achievement awards for players.
+
+**Structure:**
+```json
+{
+  "kind": 36910,
+  "tags": [
+    ["d", "<badge-id>"],
+    ["p", "<recipient-pubkey>"],
+    ["badge", "<badge-type>"],
+    ["t", "golf-badge"]
+  ],
+  "content": "{\"description\": \"First hole-in-one!\", \"awardedAt\": 1690000000}"
+}
+```
+
+**Files:** `types.ts`
 
 ---
 
@@ -289,7 +281,7 @@ Complete round event with participants, scores, and course data.
 The app uses a **Grain relay** as the primary relay, with a fallback for discovery:
 
 **Primary Relay:**
-- `wss://relay.pinseekr.golf` - Self-hosted Grain relay on Umbrel
+- `wss://relay.pinseekr.golf` - Self-hosted Grain relay
 
 **Fallback Relay:**
 - `wss://relay.primal.net` - Backup for discovery
@@ -300,15 +292,6 @@ The app uses a **Grain relay** as the primary relay, with a fallback for discove
 2. Falls back to preset relays if discovery fails
 3. Queries multiple relays simultaneously (capped at 6)
 4. Publishes to multiple relays (capped at 5)
-
-### Grain Relay Deployment
-
-The Grain relay is deployed via Docker on Umbrel with:
-- **Grain**: Nostr relay with MongoDB backend
-- **MongoDB**: Event storage
-- **Caddy**: Reverse proxy with auto-SSL
-
-See `deploy/umbrel/README.md` for deployment instructions.
 
 ### Kind Whitelist (Grain Config)
 
@@ -321,15 +304,14 @@ The relay only accepts these event kinds:
 - `6` - Repost
 - `7` - Reaction
 - `1111` - NIP-22 comments
-- `36905` - Settlement
-- `36907` - Tournament
-- `36909` - Player score
-- `36910` - Invite accept
-- `36908` - Golf course
-- `30382` - Golf profile
-- `31924` - Golf round
+- `36901` - Golf round
+- `36902` - Golf course
+- `36903` - Player score
+- `36904` - Golf profile
+- `36905` - Tournament
+- `36910` - Badge award
 
-**Files:** `NostrProvider.tsx`, `pyramid-relays.json`, `deploy/umbrel/`
+**Files:** `NostrProvider.tsx`, `pyramid-relays.json`
 
 ---
 
@@ -337,6 +319,7 @@ The relay only accepts these event kinds:
 
 | File | Purpose |
 |------|---------|
+| `src/lib/golf/types.ts` | **Authoritative kind definitions** (`GOLF_KINDS` constant) |
 | `src/components/NostrProvider.tsx` | Relay pool management and discovery |
 | `src/hooks/useNostr.ts` | Re-exports `useNostr` from `@nostrify/react` |
 | `src/hooks/useAuthor.ts` | Fetch user metadata (kind 0) |
@@ -347,7 +330,6 @@ The relay only accepts these event kinds:
 | `src/hooks/useGolfCourses.ts` | Query/create golf courses |
 | `src/hooks/useGolfProfile.ts` | Query/update golf profiles |
 | `src/hooks/useContacts.ts` | Query user contacts |
-| `src/lib/golf/social.ts` | Golf-specific types and constants |
 | `NIP.md` | Custom NIP documentation |
 
 ---

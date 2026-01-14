@@ -1157,10 +1157,7 @@ export const NewRoundPage: React.FC = () => {
       };
 
       const roundEvent = createRoundEvent(roundToPublish, code);
-      console.log('[generateRoundCode] Publishing round event with code:', code);
-      console.log('[generateRoundCode] Round event:', JSON.stringify(roundEvent, null, 2));
       await publishEvent(roundEvent);
-      console.log('[generateRoundCode] Round event published successfully');
 
       // Also publish the current user as a player
       const hostPlayer: PlayerInRound = {
@@ -1172,9 +1169,7 @@ export const NewRoundPage: React.FC = () => {
         netTotal: 0
       };
       const playerEvent = createPlayerEvent(hostPlayer, roundToPublish.id);
-      console.log('[generateRoundCode] Publishing player event for host');
       await publishEvent(playerEvent);
-      console.log('[generateRoundCode] Player event published successfully');
 
       // Generate QR Code
       const qrDataUrl = await QRCode.toDataURL(joinUrl, {
@@ -1491,9 +1486,6 @@ export const NewRoundPage: React.FC = () => {
     }
 
     publishEvent(gameEvent, {
-      onSuccess: () => {
-        console.log('Game event published successfully');
-      },
       onError: (error) => {
         console.error('Error publishing game event:', error);
       }

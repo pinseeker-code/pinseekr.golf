@@ -33,7 +33,6 @@ export const ScoreEntryPage: React.FC = () => {
 
   const handleShareRound = () => {
     // noop placeholder — can be implemented to publish to Nostr
-    console.log('Share round requested');
   };
 
   return (

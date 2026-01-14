@@ -21,7 +21,6 @@ export default function JoinRoundPage() {
     }
 
     if (!nostr) {
-      console.log('[JoinRoundPage] Waiting for nostr to initialize...');
       return;
     }
 
@@ -30,42 +29,31 @@ export default function JoinRoundPage() {
     // Add a timeout to avoid appearing stuck — but do NOT abort the query.
     // Let the query continue; if an event arrives after the timeout we should still handle it.
     const timeoutId = setTimeout(() => {
-      console.log('[JoinRoundPage] Query timed out after 10 seconds (still listening)');
       setTimedOut(true);
     }, 10000);
 
     (async () => {
       try {
         const codeToQuery = joinCode.toUpperCase();
-        console.log('[JoinRoundPage] Querying for join code:', codeToQuery);
-        console.log('[JoinRoundPage] Using kind:', GOLF_KINDS.ROUND);
         
         // Query using #d tag with join-CODE format (d tags are always indexed)
         const filter = { kinds: [GOLF_KINDS.ROUND], '#d': [`join-${codeToQuery}`], limit: 1 };
-        console.log('[JoinRoundPage] Filter:', JSON.stringify(filter));
         
         const events = await nostr.query([filter], { signal: controller.signal }) as NostrEvent[];
 
         clearTimeout(timeoutId);
-        console.log('[JoinRoundPage] Query returned', events.length, 'events');
-
-        if (events.length > 0) {
-          console.log('[JoinRoundPage] First event tags:', JSON.stringify(events[0].tags));
-        }
 
         // If the component was unmounted and the controller aborted, stop.
         if (controller.signal.aborted) return;
 
         // If the query finished and returned no events, mark not-found.
         if (events.length === 0) {
-          console.log('[JoinRoundPage] No events found after query, setting not-found');
           setStatus('not-found');
           return;
         }
 
         // Get the actual round ID from the round-id tag
         const roundEvent = events[0];
-        console.log('[JoinRoundPage] Found round event:', roundEvent);
         const roundIdTag = (roundEvent.tags as string[][]).find((t: string[]) => t[0] === 'round-id');
         const actualRoundId = roundIdTag?.[1];
 
@@ -75,7 +63,6 @@ export default function JoinRoundPage() {
           return;
         }
 
-        console.log('[JoinRoundPage] Redirecting to roundId:', actualRoundId);
         setStatus('redirecting');
         // Redirect to the New Round flow with the actual roundId and request auto-join confirmation
         navigate(`/round/new?roundId=${encodeURIComponent(actualRoundId)}&autoJoin=1`, { replace: true });

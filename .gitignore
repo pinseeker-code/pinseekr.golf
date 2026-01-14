@@ -10,7 +10,6 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
-*.local
 
 # Editor directories and files
 .idea
@@ -24,7 +23,16 @@ dist-ssr
 # Vercel
 .vercel
 
-# Secrets
+# Environment files - NEVER commit secrets
 .env
 .env.*
+*.local
 !.env.example
+
+# AI/Agent configs (local only)
+agent.json
+.gooseignore
+.mcp.json
+
+# Build artifacts
+*.tsbuildinfo

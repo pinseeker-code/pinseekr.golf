@@ -2,7 +2,7 @@
 
 **The decentralized golf scoring app powered by Bitcoin and Nostr.**
 
-Track scores, settle bets with Lightning, and own your golf data — no accounts, no subscriptions, just golf.
+Track scores, settle bets and costs with Lightning, and own your golf data. 
 
 [![Live App](https://img.shields.io/badge/Live-pinseekr.golf-green?style=for-the-badge)](https://pinseekr.golf)
 
@@ -11,9 +11,9 @@ Track scores, settle bets with Lightning, and own your golf data — no accounts
 ## ✨ Features
 
 ### 📊 Score Tracking
-- **Real-time scoring** for up to 8 players
-- **Multiple game modes**: Stroke Play, Match Play, Stableford, Skins, Nassau, Wolf, Vegas, Sixes, Snake, Dots
-- **Pinseekr Cup**: Multi-game tournament format with combined scoring
+- **Real-time scoring**
+- **Multiple game modes**: Stroke Play, Match Play, Stableford, Skins, Nassau, Vegas, Sixes, Snake,
+- **Pinseekr Cup**: Innovative multi-game tournament format with combined scoring
 - **Handicap support**: Net scoring with automatic adjustments
 
 ### ⚡ Lightning Settlements
@@ -23,13 +23,12 @@ Track scores, settle bets with Lightning, and own your golf data — no accounts
 - **Cost splitting** for green fees, carts, food & drinks
 
 ### 🌐 Decentralized & Private
-- **No account required** — login with any Nostr client
 - **Your data, your keys** — stored on Nostr relays you control
 - **No subscriptions** — free forever
 - **Works offline** — scores sync when you're back online
 
 ### 📱 Mobile-First
-- **Progressive Web App** — install on any device
+- **Progressive Web App** — use on any device
 - **Touch-optimized** score entry
 - **QR code sharing** — invite players instantly
 
@@ -90,12 +89,9 @@ Open [http://localhost:8080](http://localhost:8080)
 | **Stableford** | Points-based scoring (rewards birdies, protects against blowups) |
 | **Skins** | Win the hole outright to take the pot |
 | **Nassau** | Three separate bets: front 9, back 9, overall |
-| **Wolf** | Rotating captain picks partners or goes alone |
 | **Vegas** | Team format with concatenated scores |
-| **Sixes** | Rotating partnerships every 6 holes |
 | **Snake** | First 3-putt takes the snake, last one holding pays |
-| **Dots** | Points for birdies, greenies, sandies, and more |
-| **Pinseekr Cup** | Tournament combining multiple game formats |
+| **Pinseekr Cup** | Ryder Cup style tournament combining multiple game formats.  |
 
 ---
 
@@ -151,11 +147,7 @@ MIT License — see [LICENSE](LICENSE) for details.
 ## 🔗 Links
 
 - **Website**: [pinseekr.golf](https://pinseekr.golf)
-- **Nostr**: Follow us on Nostr for updates
+- **Nostr**: Follow on Nostr npub12sl626zucwnkqwxnkm5y5knlnxycn2cx8vy3dhfghccqxvnkxvuqfy6dme
 - **Issues**: [GitHub Issues](https://github.com/pinseeker-code/pinseekr.golf/issues)
 
 ---
-
-<p align="center">
-  <strong>Built with ⚡ and 🏌️ by golfers, for golfers.</strong>
-</p>

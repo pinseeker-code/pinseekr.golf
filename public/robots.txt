@@ -1,0 +1,6 @@
+# Allow all crawlers
+User-agent: *
+Allow: /
+
+# Sitemap (optional - add when you have one)
+# Sitemap: https://pinseekr.golf/sitemap.xml

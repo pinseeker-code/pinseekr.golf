@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Shield, Upload, AlertTriangle, KeyRound, QrCode, Copy, Loader, Sparkles, UserPlus, Mail, ArrowLeft } from 'lucide-react';
+import { Shield, Upload, AlertTriangle, KeyRound, QrCode, Copy, Loader, Sparkles, UserPlus, Mail, ArrowLeft, Link2 } from 'lucide-react';
 import QRCode from 'qrcode';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,7 @@ import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useLoginActions } from '@/hooks/useLoginActions';
 import { useEmailAuth, validateEmail, validatePassword, validateConfirmPassword } from '@/hooks/useEmailAuth';
+import { useNostr } from '@nostrify/react';
 import { cn } from '@/lib/utils';
 
 interface EnhancedLoginDialogProps {
@@ -17,6 +18,14 @@ interface EnhancedLoginDialogProps {
   onLogin: () => void;
   onSignup?: () => void;
 }
+
+// NIP-46 relays - use the same relays that Amber and other signers connect to
+const NIP46_RELAYS = [
+  'wss://relay.nsec.app',      // Primary NIP-46 relay (most signers use this)
+  'wss://relay.damus.io',      // Popular relay
+  'wss://nos.lol',             // Popular relay  
+  'wss://relay.pinseekr.golf', // Our relay
+];
 
 const validateNsec = (nsec: string) => {
   return /^nsec1[a-zA-Z0-9]{58}$/.test(nsec);
@@ -32,15 +41,19 @@ export const EnhancedLoginDialog: React.FC<EnhancedLoginDialogProps> = ({
   onLogin,
   onSignup
 }) => {
+  const { nostr } = useNostr();
   const [isLoading, setIsLoading] = useState(false);
   const [isFileLoading, setIsFileLoading] = useState(false);
   const [nsec, setNsec] = useState('');
   const [bunkerUri, setBunkerUri] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showBunkerInput, setShowBunkerInput] = useState(false);
   const [showQrFlow, setShowQrFlow] = useState(false);
   const [connectionString, setConnectionString] = useState('');
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
   const [isWaitingForAuth, setIsWaitingForAuth] = useState(false);
+  const [_connectSecret, setConnectSecret] = useState('');
+  const [_clientSecretKey, setClientSecretKey] = useState<Uint8Array | null>(null);
   const [emailMode, setEmailMode] = useState(false);
   const [emailForm, setEmailForm] = useState({
     email: '',
@@ -56,6 +69,7 @@ export const EnhancedLoginDialog: React.FC<EnhancedLoginDialogProps> = ({
     extension?: string;
   }>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const login = useLoginActions();
   const emailAuth = useEmailAuth();
 
@@ -67,10 +81,13 @@ export const EnhancedLoginDialog: React.FC<EnhancedLoginDialogProps> = ({
       setNsec('');
       setBunkerUri('');
       setShowAdvanced(false);
+      setShowBunkerInput(false);
       setShowQrFlow(false);
       setConnectionString('');
       setQrCodeDataUrl('');
       setIsWaitingForAuth(false);
+      setConnectSecret('');
+      setClientSecretKey(null);
       setEmailMode(false);
       setEmailForm({
         email: '',
@@ -80,50 +97,159 @@ export const EnhancedLoginDialog: React.FC<EnhancedLoginDialogProps> = ({
       });
       setEmailError('');
       setErrors({});
+      // Abort any in-progress connection attempts
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
     }
   }, [isOpen]);
 
-  // Generate connection string and QR code for Nostr Connect protocol
+  // Generate connection string, QR code, and START LISTENING immediately (Grimoire pattern)
+  // Key insight: We must be listening BEFORE the user scans the QR code
   useEffect(() => {
     if (showQrFlow && !connectionString) {
-      // Generate real keypair for the connection
-      import('nostr-tools').then(({ generateSecretKey, getPublicKey }) => {
-        const secretKey = generateSecretKey();
-        const pubkey = getPublicKey(secretKey);
-        
-        const metadata = encodeURIComponent(JSON.stringify({
-          name: "PinSeekr Golf",
-          url: "https://pinseekr.golf",
-          description: "Golf Social Platform with Nostr Authentication"
-        }));
-        
-        const realConnectionString = `nostrconnect://${pubkey}?relay=wss%3A%2F%2Frelay.nostr.band&metadata=${metadata}`;
-        setConnectionString(realConnectionString);
+      const initializeConnection = async () => {
+        try {
+          const { generateSecretKey, getPublicKey, nip19 } = await import('nostr-tools');
+          const nostrifyModule = await import('@nostrify/nostrify');
+          const { NSecSigner, NConnectSigner, NSchema } = nostrifyModule;
+          
+          // 1. Generate client keypair
+          const secretKey = generateSecretKey();
+          const pubkey = getPublicKey(secretKey);
+          
+          // 2. Generate random secret
+          const randomBytes = new Uint8Array(8);
+          crypto.getRandomValues(randomBytes);
+          const secret = Array.from(randomBytes).map(b => b.toString(16).padStart(2, '0')).join('');
+          
+          setConnectSecret(secret);
+          setClientSecretKey(secretKey);
+          
+          // 3. Build nostrconnect:// URI
+          const params = new URLSearchParams();
+          NIP46_RELAYS.forEach(relay => params.append('relay', relay));
+          params.append('secret', secret);
+          params.append('name', 'pinseekr.golf');
+          params.append('url', 'https://pinseekr.golf');
+          params.append('perms', 'sign_event,nip44_encrypt,nip44_decrypt,get_public_key');
+          
+          const realConnectionString = `nostrconnect://${pubkey}?${params.toString()}`;
+          setConnectionString(realConnectionString);
+          console.log('[NIP-46] Generated nostrconnect URI:', realConnectionString);
 
-        // Generate QR code
-        QRCode.toDataURL(realConnectionString, {
-          width: 192,
-          margin: 2,
-          color: {
-            dark: '#000000',
-            light: '#FFFFFF'
+          // 4. Generate QR code
+          const qrUrl = await QRCode.toDataURL(realConnectionString, {
+            width: 280,
+            margin: 4,
+            color: { dark: '#000000', light: '#FFFFFF' }
+          });
+          setQrCodeDataUrl(qrUrl);
+
+          // 5. START LISTENING IMMEDIATELY (before user scans)
+          // This is the key difference from the old flow
+          setIsWaitingForAuth(true);
+          setIsLoading(true);
+          
+          const controller = new AbortController();
+          abortControllerRef.current = controller;
+          
+          const clientSigner = new NSecSigner(secretKey);
+          console.log('[NIP-46] Listening for connect response (auto-started)...');
+          console.log('[NIP-46] Client pubkey:', pubkey);
+          
+          // Set 2 minute timeout
+          const timeout = setTimeout(() => {
+            controller.abort();
+          }, 120000);
+
+          // Subscribe to kind 24133 events
+          const subscription = nostr.req(
+            [{ kinds: [24133], '#p': [pubkey], limit: 10 }],
+            { signal: controller.signal }
+          );
+
+          for await (const msg of subscription) {
+            if (msg[0] === 'CLOSED') {
+              console.log('[NIP-46] Subscription closed');
+              break;
+            }
+            
+            if (msg[0] === 'EVENT') {
+              const event = msg[2];
+              console.log('[NIP-46] Received event from:', event.pubkey);
+              
+              try {
+                const decrypted = await clientSigner.nip44.decrypt(event.pubkey, event.content);
+                console.log('[NIP-46] Decrypted response:', decrypted);
+                
+                const response = NSchema.json().pipe(NSchema.connectResponse()).parse(decrypted);
+                console.log('[NIP-46] Parsed response:', response);
+                
+                if (response.result === secret || response.result === 'ack') {
+                  console.log('[NIP-46] Connection confirmed! Remote signer pubkey:', event.pubkey);
+                  clearTimeout(timeout);
+                  
+                  // Create bunker URI
+                  const clientNsec = nip19.nsecEncode(secretKey);
+                  const bunkerUri = `bunker://${event.pubkey}?relay=wss%3A%2F%2Frelay.nsec.app&secret=${encodeURIComponent(clientNsec)}`;
+                  
+                  // Get user pubkey via established connection
+                  const signer = new NConnectSigner({
+                    relay: nostr,
+                    pubkey: event.pubkey,
+                    signer: clientSigner,
+                    timeout: 30000
+                  });
+                  
+                  const userPubkey = await signer.getPublicKey();
+                  console.log('[NIP-46] User pubkey:', userPubkey);
+                  
+                  // Login
+                  await login.bunker(bunkerUri);
+                  
+                  setIsWaitingForAuth(false);
+                  setIsLoading(false);
+                  onLogin();
+                  onClose();
+                  return;
+                }
+              } catch (err) {
+                console.log('[NIP-46] Failed to process event:', err);
+              }
+            }
           }
-        }).then(url => {
-          setQrCodeDataUrl(url);
-        }).catch(err => {
-          console.error('Failed to generate QR code:', err);
-        });
-
-        // Store the secret key for connection process with proper typing
-        (window as Window & { _nostrConnectSecret?: Uint8Array })._nostrConnectSecret = secretKey;
-      }).catch(err => {
-        console.error('Failed to load nostr-tools:', err);
-      });
+          
+          throw new Error('Connection timed out. Please try again.');
+          
+        } catch (error) {
+          if ((error as Error).name === 'AbortError') {
+            console.log('[NIP-46] Connection cancelled');
+          } else {
+            console.error('[NIP-46] Connection failed:', error);
+            setErrors(prev => ({ 
+              ...prev, 
+              extension: error instanceof Error ? error.message : 'Connection failed. Please try again.' 
+            }));
+          }
+          setIsWaitingForAuth(false);
+          setIsLoading(false);
+        }
+      };
+      
+      initializeConnection();
     }
-  }, [showQrFlow, connectionString]);
+  }, [showQrFlow, connectionString, nostr, login, onLogin, onClose]);
+
+  // handleQrLogin just toggles the QR flow view; listening starts automatically in the useEffect
+  const handleQrLogin = () => {
+    setShowQrFlow(true);
+    setErrors(prev => ({ ...prev, extension: undefined }));
+  };
 
   const handleExtensionLogin = async () => {
     setIsLoading(true);
@@ -145,18 +271,6 @@ export const EnhancedLoginDialog: React.FC<EnhancedLoginDialogProps> = ({
       }));
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const handleQrLogin = () => {
-    try {
-      setShowQrFlow(true);
-      setIsWaitingForAuth(false); // Don't start waiting until user clicks connect
-      
-      // QR code login initialized - dialog remains open for user interaction
-    } catch (error) {
-      console.error('QR login error:', error);
-      setErrors(prev => ({ ...prev, extension: 'Failed to initialize QR login' }));
     }
   };
 
@@ -197,7 +311,7 @@ export const EnhancedLoginDialog: React.FC<EnhancedLoginDialogProps> = ({
     executeLogin(nsec);
   };
 
-  const _handleBunkerLogin = async () => {
+  const handleBunkerLogin = async () => {
     if (!bunkerUri.trim()) {
       setErrors(prev => ({ ...prev, bunker: 'Please enter a bunker URI' }));
       return;
@@ -311,37 +425,22 @@ export const EnhancedLoginDialog: React.FC<EnhancedLoginDialogProps> = ({
       <DialogContent className="max-w-[400px] max-h-[90vh] p-0 overflow-hidden rounded-2xl">
         <div className="max-h-[90vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
           <div className="p-8 space-y-6 pb-12">
-          {/* QR Code Flow */}
+          {/* QR Code Flow - Grimoire-style layout */}
           {showQrFlow ? (
             <>
               {/* Header */}
               <DialogHeader className="text-center space-y-2">
                 <DialogTitle className="text-xl font-semibold">Connect with QR Code</DialogTitle>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  onClick={() => setShowQrFlow(false)}
-                  className="mx-auto text-muted-foreground hover:text-foreground"
-                >
-                  ← Back to login options
-                </Button>
+                <p className="text-sm text-muted-foreground">
+                  Scan with your Nostr signer app (Amber, nsec.app, etc.)
+                </p>
               </DialogHeader>
-
-              {/* Waiting indicator */}
-              {isWaitingForAuth && (
-                <div className="mb-4 p-3 rounded-lg flex items-center bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800">
-                  <Loader className="w-5 h-5 mr-2 animate-spin text-blue-600" />
-                  <span className="text-blue-800 dark:text-blue-200">
-                    Waiting for authentication... This can take up to a minute, be patient
-                  </span>
-                </div>
-              )}
 
               {/* Connection errors */}
               {errors.extension && (
-                <div className="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800">
-                  <div className="flex items-center">
-                    <AlertTriangle className="w-5 h-5 mr-2 text-red-600" />
+                <div className="p-3 rounded-lg bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 mt-0.5 text-red-600 flex-shrink-0" />
                     <span className="text-red-800 dark:text-red-200 text-sm">
                       {errors.extension}
                     </span>
@@ -349,137 +448,77 @@ export const EnhancedLoginDialog: React.FC<EnhancedLoginDialogProps> = ({
                 </div>
               )}
 
-              {/* QR Code Section */}
-              <div className="space-y-4">
-                <div className="text-center">
-                  <p className="text-sm mb-3 text-muted-foreground">Scan with your Nostr app</p>
-                  <div className="inline-block p-4 bg-white rounded-lg border-2 border-border">
-                    {qrCodeDataUrl ? (
-                      <img 
-                        src={qrCodeDataUrl} 
-                        alt="Nostr connection QR code" 
-                        className="w-48 h-48"
-                        width={192}
-                        height={192}
-                      />
-                    ) : (
-                      <div className="w-48 h-48 bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg flex items-center justify-center">
-                        <div className="text-center space-y-2">
-                          <QrCode className="w-12 h-12 mx-auto text-gray-400" />
-                          <p className="text-xs text-gray-500">Generating QR Code...</p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Connection String */}
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium">Connection String</label>
-                  <div className="flex">
-                    <Input
-                      readOnly
-                      value={connectionString}
-                      className="flex-1 rounded-l-lg text-sm font-mono bg-muted"
-                      type="text"
+              {/* QR Code Section - Centered and prominent */}
+              <div className="flex flex-col items-center gap-4">
+                <div className="p-3 bg-white rounded-xl shadow-sm border">
+                  {qrCodeDataUrl ? (
+                    <img 
+                      src={qrCodeDataUrl} 
+                      alt="Nostr Connect QR Code" 
+                      className="w-64 h-64"
+                      width={256}
+                      height={256}
                     />
-                    <Button
-                      onClick={copyConnectionString}
-                      variant="outline"
-                      size="sm"
-                      className="rounded-r-lg rounded-l-none border-l-0 px-3"
-                    >
-                      <Copy className="w-4 h-4" />
-                    </Button>
+                  ) : (
+                    <div className="w-64 h-64 bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg flex items-center justify-center">
+                      <div className="text-center space-y-2">
+                        <Loader className="w-8 h-8 mx-auto text-gray-400 animate-spin" />
+                        <p className="text-xs text-gray-500">Generating...</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Status indicator */}
+                {isWaitingForAuth && (
+                  <div className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400">
+                    <Loader className="w-4 h-4 animate-spin" />
+                    <span>Waiting for connection approval...</span>
                   </div>
-                </div>
+                )}
 
-                {/* Instructions */}
-                <div className="text-xs text-muted-foreground space-y-1 bg-blue-50 dark:bg-blue-950/20 p-3 rounded-lg">
-                  <p className="font-medium text-blue-900 dark:text-blue-100">How to connect:</p>
-                  <p>1. Open your Nostr app (like Amber, Alby, etc.)</p>
-                  <p>2. Scan this QR code or paste the connection string</p>
-                  <p>3. Approve the connection request in your app</p>
-                  <p>4. Click "Check Connection" below</p>
-                  <p className="text-amber-600 dark:text-amber-400 font-medium">
-                    ⚠️ Make sure to approve ALL permissions in your app
-                  </p>
-                </div>
-
-                {/* Action buttons */}
-                <div className="flex gap-2 pt-4">
+                {/* Copy connection string */}
+                {connectionString && (
                   <Button
-                    variant="outline"
-                    onClick={() => setShowQrFlow(false)}
-                    className="flex-1"
+                    variant="ghost"
+                    size="sm"
+                    onClick={copyConnectionString}
+                    className="text-xs text-muted-foreground hover:text-foreground"
                   >
-                    Cancel
+                    <Copy className="w-3 h-3 mr-1" />
+                    Copy connection string
                   </Button>
-                  <Button
-                    onClick={async () => {
-                      try {
-                        setIsLoading(true);
-                        setIsWaitingForAuth(true);
-                        setErrors(prev => ({ ...prev, extension: undefined }));
-                        
-                        // For nostrconnect URIs, we need to wait for the user to scan the QR code
-                        // and approve the connection in their Nostr app. The connection will be
-                        // established through the relay specified in the URI.
-                        
-                        // Create a promise that will resolve when the connection is established
-                        const connectionPromise = new Promise<void>((resolve, reject) => {
-                          const timeout = setTimeout(() => {
-                            reject(new Error('Connection timeout. Please make sure you scanned the QR code and approved the connection in your Nostr app.'));
-                          }, 60000); // 60 second timeout
-                          
-                          // Poll for connection status
-                          const checkConnection = async () => {
-                            try {
-                              // Try to use the extension method as a fallback
-                              // This works because many Nostr apps will inject a nostr object
-                              // after establishing the connection
-                              if ('nostr' in window) {
-                                clearTimeout(timeout);
-                                await login.extension();
-                                resolve();
-                                return;
-                              }
-                              
-                              // If no extension available, continue polling
-                              setTimeout(checkConnection, 2000);
-                            } catch (error) {
-                              console.log('Connection check failed, retrying...', error);
-                              setTimeout(checkConnection, 2000);
-                            }
-                          };
-                          
-                          // Start polling after a short delay to give the user time to scan
-                          setTimeout(checkConnection, 3000);
-                        });
-                        
-                        await connectionPromise;
-                        
-                        setIsWaitingForAuth(false);
-                        onLogin();
-                        onClose();
-                      } catch (error) {
-                        console.error('Connection failed:', error);
-                        setIsWaitingForAuth(false);
-                        setErrors(prev => ({ 
-                          ...prev, 
-                          extension: error instanceof Error ? error.message : 'Connection failed. Please scan the QR code and approve the connection in your Nostr app, then click this button again.' 
-                        }));
-                      } finally {
-                        setIsLoading(false);
-                      }
-                    }}
-                    className="flex-1"
-                    disabled={!connectionString || isLoading}
-                  >
-                    {isLoading ? 'Waiting for connection...' : isWaitingForAuth ? 'Check Connection' : 'Connect Now'}
-                  </Button>
-                </div>
+                )}
               </div>
+
+              {/* Instructions */}
+              <div className="text-xs text-muted-foreground space-y-1.5 p-3 rounded-lg bg-muted/50">
+                <p className="font-medium text-foreground">How to connect:</p>
+                <ol className="list-decimal list-inside space-y-1">
+                  <li>Open Amber, nsec.app, or another NIP-46 signer</li>
+                  <li>Scan this QR code or paste the connection string</li>
+                  <li>Approve the "pinseekr.golf" connection request</li>
+                </ol>
+              </div>
+
+              {/* Back button */}
+              <Button
+                variant="outline"
+                onClick={() => {
+                  if (abortControllerRef.current) {
+                    abortControllerRef.current.abort();
+                  }
+                  setShowQrFlow(false);
+                  setConnectionString('');
+                  setQrCodeDataUrl('');
+                  setIsWaitingForAuth(false);
+                  setIsLoading(false);
+                }}
+                className="w-full"
+              >
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back to login options
+              </Button>
             </>
           ) : (
             <>
@@ -549,8 +588,53 @@ export const EnhancedLoginDialog: React.FC<EnhancedLoginDialogProps> = ({
                   disabled={isLoading}
                 >
                   <QrCode className="w-4 h-4 mr-2" />
-                  Connect with QR Code
+                  Connect with QR Code (First Time)
                 </Button>
+
+                {/* Bunker URI Login Option - for returning users */}
+                <Button
+                  variant="outline"
+                  className="w-full h-12 rounded-xl font-medium"
+                  onClick={() => setShowBunkerInput(!showBunkerInput)}
+                >
+                  <Link2 className="w-4 h-4 mr-2" />
+                  Login with Bunker URI
+                </Button>
+
+                {showBunkerInput && (
+                  <div className="space-y-3 p-4 bg-muted/30 rounded-xl border">
+                    <p className="text-xs text-muted-foreground">
+                      Paste your bunker:// URI from Amber or another NIP-46 signer.
+                    </p>
+                    <div className="space-y-2">
+                      <Input
+                        type="text"
+                        value={bunkerUri}
+                        onChange={(e) => {
+                          setBunkerUri(e.target.value);
+                          if (errors.bunker) setErrors(prev => ({ ...prev, bunker: undefined }));
+                        }}
+                        className={cn(
+                          "h-10 rounded-lg font-mono text-xs",
+                          errors.bunker ? 'border-red-500' : ''
+                        )}
+                        placeholder="bunker://..."
+                        autoComplete="off"
+                      />
+                      {errors.bunker && (
+                        <p className="text-sm text-red-500">{errors.bunker}</p>
+                      )}
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={handleBunkerLogin}
+                      disabled={isLoading || !bunkerUri.trim()}
+                      className="w-full rounded-lg"
+                    >
+                      {isLoading ? 'Connecting...' : 'Connect to Bunker'}
+                    </Button>
+                  </div>
+                )}
 
                 {/* Secret Key option - always available */}
                 <Button

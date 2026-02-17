@@ -69,7 +69,7 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({
   const { saveRound: persistRound } = useRoundPersistence(round.id || 'current-round');
 
   const currentHoleData = round.holes[currentHole];
-  const player = round.players[currentPlayer];
+  const player = round.players[currentPlayer]!;
   const [playerDisplayMode, setPlayerDisplayMode] = useState<'total' | 'strokes'>('total');
 
   const getPlayerInitials = (name: string) => {
@@ -79,8 +79,8 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({
 
   // Helper: get per-player per-hole details (falls back to hole-level values)
   const getPlayerHoleDetails = (playerIndex: number, holeIndex: number) => {
-    const hole = round.holes?.[holeIndex] || { holeNumber: holeIndex + 1, par: 4 } as HoleScore;
-    const p = round.players[playerIndex];
+    const hole = round.holes?.[holeIndex] ?? ({ holeNumber: holeIndex + 1, par: 4 } as HoleScore);
+    const p = round.players[playerIndex]!;
     const details = p.holeDetails?.[holeIndex] || {};
 
     return {
@@ -135,8 +135,8 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({
     // Calculate handicap stroke allocation for match play
     let handicapStrokesGiven = 0;
     if (r.players.length === 2) {
-      const p1 = r.players[0];
-      const p2 = r.players[1];
+      const p1 = r.players[0]!;
+      const p2 = r.players[1]!;
       const p1Hcp = p1.handicap || 0;
       const p2Hcp = p2.handicap || 0;
       
@@ -207,7 +207,7 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({
           const pPutts = (playerHoleDetails && typeof playerHoleDetails.putts === 'number')
             ? playerHoleDetails.putts
             : (typeof hole.putts === 'number' ? hole.putts : 0);
-          putts[player.playerId][hole.holeNumber] = pPutts;
+          putts[player.playerId]![hole.holeNumber] = pPutts;
         }
       });
     });
@@ -218,8 +218,8 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({
       strokes: round.players.reduce((acc, player) => {
         acc[player.playerId] = {};
         round.holes.forEach((hole, holeIndex) => {
-          if (holeIndex <= currentHole && player.scores[holeIndex] > 0) {
-            acc[player.playerId][hole.holeNumber] = player.scores[holeIndex];
+          if (holeIndex <= currentHole && (player.scores?.[holeIndex] ?? 0) > 0) {
+            acc[player.playerId]![hole.holeNumber] = player.scores?.[holeIndex] ?? 0;
           }
         });
         return acc;
@@ -240,7 +240,7 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({
     if (result.holeByHole.length === 0) return null;
     
     const lastHole = result.holeByHole[result.holeByHole.length - 1];
-    return lastHole.snakeHolder;
+    return lastHole?.snakeHolder ?? null;
   };
 
   // Initialize holes with proper structure if needed
@@ -396,7 +396,7 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({
 
   // Calculate round statistics for current player
   const calculatePlayerStats = (playerIndex: number) => {
-    const player = round.players[playerIndex];
+    const player = round.players[playerIndex]!;
     const stats = {
       holesPlayed: 0,
       birdies: 0,
@@ -415,7 +415,7 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({
     };
 
     round.holes?.forEach((hole, holeIndex) => {
-      const strokes = player.scores[holeIndex];
+      const strokes = player.scores?.[holeIndex] ?? 0;
       if (strokes > 0) {
         stats.holesPlayed++;
         const diff = strokes - hole.par;
@@ -472,11 +472,11 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({
 
   const onTouchStart = (e: React.TouchEvent) => {
     setTouchEnd(null);
-    setTouchStart(e.targetTouches[0].clientX);
+    setTouchStart(e.targetTouches?.[0]?.clientX ?? 0);
   };
 
   const onTouchMove = (e: React.TouchEvent) => {
-    setTouchEnd(e.targetTouches[0].clientX);
+    setTouchEnd(e.targetTouches?.[0]?.clientX ?? 0);
   };
 
   const onTouchEnd = () => {
@@ -526,16 +526,16 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({
           </div>
           
           {/* Show current player's score if they've entered it */}
-          {player.scores[currentHole] > 0 && (
+          {(player.scores?.[currentHole] ?? 0) > 0 && (
             <div className="mt-1">
               <span className={cn(
                 "text-lg font-bold",
-                getScoreColor(player.scores[currentHole], currentHoleData?.par || course?.holes?.[currentHole + 1] || 4)
+                getScoreColor(player.scores?.[currentHole] ?? 0, currentHoleData?.par || course?.holes?.[currentHole + 1] || 4)
               )}>
-                {player.scores[currentHole]}
+                {player.scores?.[currentHole] ?? 0}
               </span>
               <span className="text-xs text-purple-300 ml-1">
-                ({getScoreName(player.scores[currentHole], currentHoleData?.par || course?.holes?.[currentHole + 1] || 4)})
+                ({getScoreName(player.scores?.[currentHole] ?? 0, currentHoleData?.par || course?.holes?.[currentHole + 1] || 4)})
               </span>
             </div>
           )}
@@ -1277,7 +1277,7 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({
           <div className="flex items-center space-x-3 min-w-0">
             <span className="text-sm font-semibold truncate">Hole {currentHole + 1} of {round.holes.length}</span>
             <span className="text-yellow-800">•</span>
-            <span className="text-sm truncate">{player.name}</span>
+            <span className="text-sm truncate">{player?.name}</span>
           </div>
 
           <div className="flex items-center space-x-2">
@@ -1337,6 +1337,7 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({
         players={round.players.map(p => ({ playerId: p.playerId, name: p.name }))}
         expenses={expenses}
         onExpensesChange={setExpenses}
+        roundId={round.id}
       />
     </div>
   );

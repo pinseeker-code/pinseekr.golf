@@ -63,7 +63,7 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
 
   // Calculate player statistics
   const calculatePlayerStats = (playerIndex: number) => {
-    const player = round.players[playerIndex];
+    const player = round.players[playerIndex]!;
     const stats = {
       holesPlayed: 0,
       birdies: 0,
@@ -82,7 +82,7 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
     };
 
     round.holes?.forEach((hole, holeIndex) => {
-      const strokes = player.scores[holeIndex];
+      const strokes = player.scores?.[holeIndex] ?? 0;
       if (strokes > 0) {
         stats.holesPlayed++;
         const diff = strokes - hole.par;
@@ -145,10 +145,10 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
   const getMatchPlayIndicator = (holeIndex: number): { winner: number | null; display: string } => {
     if (round.players.length !== 2) return { winner: null, display: '' };
     
-    const s1 = round.players[0].scores[holeIndex];
-    const s2 = round.players[1].scores[holeIndex];
+    const s1 = round.players[0]?.scores?.[holeIndex] ?? 0;
+    const s2 = round.players[1]?.scores?.[holeIndex] ?? 0;
     
-    if (!s1 || !s2) return { winner: null, display: '' };
+    if (s1 === 0 || s2 === 0) return { winner: null, display: '' };
     
     if (s1 < s2) return { winner: 0, display: '●' };
     if (s2 < s1) return { winner: 1, display: '●' };
@@ -161,8 +161,8 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
     
     let p1Wins = 0, p2Wins = 0;
     for (let i = 0; i <= upToHoleIndex; i++) {
-      const s1 = round.players[0].scores[i];
-      const s2 = round.players[1].scores[i];
+      const s1 = round.players[0]?.scores?.[i] ?? 0;
+      const s2 = round.players[1]?.scores?.[i] ?? 0;
       if (s1 > 0 && s2 > 0) {
         if (s1 < s2) p1Wins++;
         else if (s2 < s1) p2Wins++;
@@ -182,7 +182,7 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
   const getPlayerDisplayedTotal = (playerIndex: number): { score: number; par: number; holesPlayed: number } => {
     let score = 0, par = 0, holesPlayed = 0;
     for (const i of displayedHoleIndices) {
-      const s = round.players[playerIndex].scores[i];
+      const s = round.players[playerIndex]?.scores?.[i] ?? 0;
       if (s > 0) {
         score += s;
         par += round.holes[i]?.par || getPar(i);
@@ -196,8 +196,8 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
   const getHandicapStrokes = React.useMemo(() => {
     if (round.players.length !== 2) return { playerIndex: -1, holes: new Set<number>() };
     
-    const p1 = round.players[0];
-    const p2 = round.players[1];
+    const p1 = round.players[0]!;
+    const p2 = round.players[1]!;
     
     // Determine which player gets strokes (higher handicap)
     const p1Hcp = p1.handicap || 0;
@@ -223,7 +223,8 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
     // Allocate strokes to the hardest holes
     const strokeHoles = new Set<number>();
     for (let i = 0; i < strokeDifference && i < holeStrokeIndices.length; i++) {
-      strokeHoles.add(holeStrokeIndices[i].holeIndex);
+      const entry = holeStrokeIndices[i];
+      if (entry) strokeHoles.add(entry.holeIndex);
     }
     
     return { playerIndex: higherHcpPlayer, holes: strokeHoles };
@@ -434,7 +435,7 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
               </div>
               <div className="flex-1 grid gap-0.5" style={{ gridTemplateColumns: `repeat(${displayedHoleIndices.length}, minmax(0, 1fr))` }}>
                 {displayedHoleIndices.map((holeIndex) => {
-                  const score = player.scores[holeIndex];
+                  const score = player.scores?.[holeIndex] ?? 0;
                   const par = round.holes[holeIndex]?.par || getPar(holeIndex);
                   const matchIndicator = getMatchPlayIndicator(holeIndex);
                   const hasHandicapStroke = getHandicapStrokes.playerIndex === playerIndex && getHandicapStrokes.holes.has(holeIndex);
@@ -495,8 +496,8 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
             <div className="flex-1 grid gap-0.5" style={{ gridTemplateColumns: `repeat(${displayedHoleIndices.length}, minmax(0, 1fr))` }}>
               {displayedHoleIndices.map((holeIndex) => {
                 const standing = getMatchPlayStanding(holeIndex);
-                const s1 = round.players[0].scores[holeIndex];
-                const s2 = round.players[1].scores[holeIndex];
+                const s1 = round.players[0]?.scores?.[holeIndex] ?? 0;
+                const s2 = round.players[1]?.scores?.[holeIndex] ?? 0;
                 const hasScores = s1 > 0 && s2 > 0;
 
                 return (
@@ -518,7 +519,7 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
               })}
             </div>
             <div className={cn('w-10 sm:w-12 shrink-0 flex items-center justify-center bg-yellow-500/20 rounded', headerSize, 'text-yellow-300 font-bold')}>
-              {getMatchPlayStanding(displayedHoleIndices[displayedHoleIndices.length - 1])}
+              {getMatchPlayStanding(displayedHoleIndices[displayedHoleIndices.length - 1] ?? 0)}
             </div>
             <div className={cn('w-10 sm:w-12 shrink-0')}></div>
           </div>

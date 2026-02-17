@@ -3,7 +3,8 @@ import { db, HoleScore } from '@/lib/offline/db';
 import { useNostr } from '@nostrify/react';
 import { useCurrentUser } from './useCurrentUser';
 import { enqueueOutboxEvent, publishOutboxOnce } from '@/lib/sync/outbox';
-import { GOLF_KINDS } from '@/lib/golf/types';
+import { APP_KIND } from '@/lib/golf/types';
+import { SUBTYPES } from '@/lib/golfTags';
 import { v4 as uuidv4 } from 'uuid';
 
 export function useOfflineRound() {
@@ -44,7 +45,7 @@ export function useOfflineRound() {
     // Try publish outbox when back online
     if (connected) {
       // run once
-      publishOutboxOnce(nostr, user ?? null).catch(() => {});
+      publishOutboxOnce(nostr, user as unknown as { signer?: { signEvent?: (evt: Record<string, unknown>) => Promise<unknown> } | null; pubkey?: string } | null).catch(() => {});
     }
   }, [connected, nostr, user]);
 
@@ -53,7 +54,7 @@ export function useOfflineRound() {
     const onMessage = (ev: MessageEvent) => {
       const data = ev.data;
         if (data?.type === 'SYNC_OUTBOX') {
-        publishOutboxOnce(nostr, user ?? null).catch(() => {});
+        publishOutboxOnce(nostr, user as unknown as { signer?: { signEvent?: (evt: Record<string, unknown>) => Promise<unknown> } | null; pubkey?: string } | null).catch(() => {});
       }
     };
 
@@ -73,15 +74,15 @@ export function useOfflineRound() {
     const score: HoleScore = { roundId, playerPubkey, hole, strokes, timestamp, deviceId };
     await db.holeScores.add(score);
 
-    // Create an outbox event - using GOLF_KINDS.PLAYER_SCORE as player score
+    // Create an outbox event - using APP_KIND with player-score subtype
     const eventId = uuidv4();
     const payload = {
-      kind: GOLF_KINDS.PLAYER_SCORE,
+      kind: APP_KIND,
       content: JSON.stringify({ roundId, playerPubkey, hole, strokes, timestamp, deviceId }),
-      tags: [['d', roundId], ['player', playerPubkey]]
+      tags: [['d', roundId], ['player', playerPubkey], ['t', 'golf'], ['t', SUBTYPES.PLAYER_SCORE]]
     };
 
-    await enqueueOutboxEvent({ eventId, kind: GOLF_KINDS.PLAYER_SCORE, payload });
+    await enqueueOutboxEvent({ eventId, kind: APP_KIND, payload });
   };
 
   const getScoresForRound = async (roundId: string) => {
@@ -89,7 +90,7 @@ export function useOfflineRound() {
   };
 
   const flushOutbox = async () => {
-    await publishOutboxOnce(nostr, user ?? null);
+    await publishOutboxOnce(nostr, user as unknown as { signer?: { signEvent?: (evt: Record<string, unknown>) => Promise<unknown> } | null; pubkey?: string } | null);
   };
 
   return {

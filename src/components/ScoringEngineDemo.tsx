@@ -1,139 +1,318 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ChevronDown, ChevronRight } from 'lucide-react';
-import {
-  processRoundWagers,
-  getNetSettlement,
-  type WagerConfig,
-  type Payable
-} from '@/lib/golf/scoringEngine';
 import {
   strokeEngine,
   convertToRoundData,
   type StrokeConfig
 } from '@/lib/golf/strokeEngine';
 import {
-  matchEngine,
-  convertToMatchData,
-  type MatchConfig,
-  type MatchResult
-} from '@/lib/golf/matchEngine';
-import {
-  dotsEngine,
-  convertToDotsData,
-  type DotsConfig,
-  type DotsResult
-} from '@/lib/golf/dotsEngine';
-import {
   snakeEngine,
-  convertToSnakeData,
+  convertToSnakeData as _convertToSnakeData,
   type SnakeConfig,
   type SnakeResult
 } from '@/lib/golf/snakeEngine';
-import { PlayerInRound } from '@/lib/golf/types';interface ScoringEngineDemoProps {
+import { PlayerInRound } from '@/lib/golf/types';
+import { createDemoRound, DEMO_COURSE_PARS } from '@/lib/golf/demoData';
+import { SnakeVisualization } from '@/components/golf/SnakeVisualization';
+
+interface ScoringEngineDemoProps {
   className?: string;
 }
+interface DemoPlayer extends PlayerInRound {
+  putts?: number[];
+}
+
+type SkinsBreakdown = {
+  hole: number;
+  winner?: string;
+  skins?: number;
+  result?: string;
+  scores?: { [playerId: string]: number };
+};
+
+type SkinsPayment = {
+  from: string;
+  to: string;
+  amount: number;
+  memo?: string;
+};
+
+type SkinsResult = {
+  name: string;
+  ledger: SkinsPayment[];
+  breakdown: SkinsBreakdown[];
+};
+
 
 export const ScoringEngineDemo: React.FC<ScoringEngineDemoProps> = ({ className }) => {
+  // Get initial demo round data
+  const initialDemoRound = useMemo(() => createDemoRound(), []);
+  
+  // Initialize players with demo data including putts
+  const initialPlayers = useMemo(() => {
+    return initialDemoRound.players.map(player => ({
+      ...player,
+      putts: Array.from({ length: 9 }, (_, i) => player.holeDetails?.[i]?.putts || 0)
+    }));
+  }, [initialDemoRound.players]);
+  
+  // State for editable player data
+  const [players, setPlayers] = useState<DemoPlayer[]>(initialPlayers);
+  
   // State for collapsible sections
   const [showSampleData, setShowSampleData] = useState(false);
   const [showGameConfig, setShowGameConfig] = useState(false);
 
+  // State for game mode selection
+  const [enableStroke, setEnableStroke] = useState(true);
+  const [enableSkins, setEnableSkins] = useState(true);
+  const [enableSnake, setEnableSnake] = useState(true);
+  const [enableStableford, setEnableStableford] = useState(false);
+
+  // State for game configurations
+  const [skinsSats, setSkinsSats] = useState(500);
+  const [snakeSats, setSnakeSats] = useState(1000);
+  const [useNetScoring, setUseNetScoring] = useState(true);
+
   // Results state
-  const [netSettlement, setNetSettlement] = useState<Payable[]>([]);
   const [strokeResults, setStrokeResults] = useState<{
     name: string;
     leaderboard: Array<{ playerId: string; position: number }>;
     totals: { [playerId: string]: { gross: number; net: number } };
   } | null>(null);
-  const [matchResults, setMatchResults] = useState<MatchResult | null>(null);
-  const [dotsResults, setDotsResults] = useState<DotsResult | null>(null);
   const [snakeResults, setSnakeResults] = useState<SnakeResult | null>(null);
+  const [skinsResults, setSkinsResults] = useState<SkinsResult | null>(null);
+  const [stablefordResults, setStablefordResults] = useState<{
+    leaderboard: Array<{ 
+      playerId: string; 
+      name: string; 
+      points: number; 
+      position: number;
+      breakdown: {
+        eagles: number;
+        birdies: number;
+        pars: number;
+        bogeys: number;
+        doubles: number;
+      };
+    }>;
+  } | null>(null);
 
-  // Sample round data
-  const samplePlayers: PlayerInRound[] = [
-    {
-      playerId: 'alice',
-      name: 'Alice Cooper',
-      handicap: 10,
-      scores: [4, 3, 5, 4, 4, 3, 4, 5, 4, 4, 3, 5, 4, 4, 3, 4, 5, 4], // 72 total
-      total: 72,
-      netTotal: 67
-    },
-    {
-      playerId: 'bob',
-      name: 'Bob Wilson',
-      handicap: 18,
-      scores: [5, 4, 6, 5, 5, 4, 5, 6, 5, 5, 4, 6, 5, 5, 4, 5, 6, 5], // 90 total
-      total: 90,
-      netTotal: 72
-    },
-    {
-      playerId: 'charlie',
-      name: 'Charlie Brown',
-      handicap: 2,
-      scores: [3, 4, 4, 3, 3, 4, 3, 4, 3, 3, 4, 4, 3, 3, 4, 3, 4, 3], // 62 total
-      total: 62,
-      netTotal: 60
-    }
-  ];
+  // Handle score updates
+  const updatePlayerScore = (playerId: string, holeIndex: number, score: number) => {
+    setPlayers(prev => prev.map(p => {
+      if (p.playerId === playerId) {
+        const newScores = [...(p.scores || [])];
+        newScores[holeIndex] = score;
+        return { ...p, scores: newScores, total: newScores.reduce((a, b) => a + b, 0) };
+      }
+      return p;
+    }));
+  };
 
-  const gameConfigs: { [gameName: string]: WagerConfig } = {
-    'Nassau': { useNet: false, unitSats: 1000 },
-    'Skins': { useNet: false, unitSats: 500, carryCap: 4 }
+  // Handle putt updates
+  const updatePlayerPutts = (playerId: string, holeIndex: number, putts: number) => {
+    setPlayers(prev => prev.map(p => {
+      if (p.playerId === playerId) {
+        const newPutts = [...(p.putts || [])];
+        newPutts[holeIndex] = putts;
+        return { ...p, putts: newPutts };
+      }
+      return p;
+    }));
+  };
+
+  // Handle handicap updates
+  const updatePlayerHandicap = (playerId: string, handicap: number) => {
+    setPlayers(prev => prev.map(p => 
+      p.playerId === playerId ? { ...p, handicap } : p
+    ));
+  };
+
+  // Generate new random simulation
+  const generateNewSimulation = () => {
+    const newDemoRound = createDemoRound();
+    const newPlayers = newDemoRound.players.map(player => ({
+      ...player,
+      putts: Array.from({ length: 9 }, (_, i) => player.holeDetails?.[i]?.putts || 0)
+    }));
+    setPlayers(newPlayers);
+    // Clear previous results
+    setStrokeResults(null);
+    setSkinsResults(null);
+    setSnakeResults(null);
+    setStablefordResults(null);
   };
 
   const processRound = () => {
-    // Process wagers (Nassau & Skins)
-    const roundResults = processRoundWagers(samplePlayers, gameConfigs);
-    const settlement = getNetSettlement(roundResults);
-    setNetSettlement(settlement);
 
     // Run stroke play engine
-    const coreData = convertToRoundData(samplePlayers);
-    const strokeConfig: StrokeConfig = { useNet: true };
-    const strokeResult = strokeEngine(coreData, strokeConfig);
+    if (enableStroke) {
+      const coreData = convertToRoundData(players);
+      const strokeConfig: StrokeConfig = { useNet: useNetScoring };
+      const strokeResult = strokeEngine(coreData, strokeConfig);
 
-    setStrokeResults({
-      name: strokeResult.name,
-      leaderboard: strokeResult.breakdown.leaderboard,
-      totals: strokeResult.breakdown.totals
-    });
-
-    // Run match play engine (using first two players)
-    if (samplePlayers.length >= 2) {
-      const matchPlayers = samplePlayers.slice(0, 2);
-      const matchData = convertToMatchData(matchPlayers);
-      const matchConfig: MatchConfig = { useNet: true };
-      const matchResult = matchEngine(matchData, matchConfig);
-      setMatchResults(matchResult);
+      setStrokeResults({
+        name: strokeResult.name,
+        leaderboard: strokeResult.breakdown.leaderboard,
+        totals: strokeResult.breakdown.totals
+      });
+    } else {
+      setStrokeResults(null);
     }
 
-    // Run dots game engine
-    const dotsData = convertToDotsData(coreData);
-    const dotsConfig: DotsConfig = {
-      wagerPerDot: 100,
-      fairwayDots: 1,
-      girDots: 1,
-      onePuttDots: 1,
-      birdieDots: 2,
-      eagleDots: 5,
-      doubleBogeyPenalty: -1
-    };
-    const dotsResult = dotsEngine(dotsData, dotsConfig);
-    setDotsResults(dotsResult);
+    // Run skins processor (9 holes with whole sats)
+    if (enableSkins) {
+      let carry = 0;
+      const ledger: Array<{ from: string; to: string; amount: number; memo?: string }> = [];
+      const breakdown: Array<{ hole: number; winner?: string; skins?: number; result?: string; scores?: { [playerId: string]: number } }> = [];
+      const playerIds = players.map(p => p.playerId);
+      const numHoles = 9;
+
+      // Helper to get scores for a hole
+      const getHoleScores = (hole: number) => {
+        const scores: { [playerId: string]: number } = {};
+        players.forEach(p => {
+          const grossScore = (p.scores || [])[hole - 1];
+          if (grossScore !== undefined) {
+            const netScore = useNetScoring ? grossScore - Math.floor(p.handicap / numHoles) : grossScore;
+            scores[p.playerId] = netScore;
+          }
+        });
+        return scores;
+      };
+
+      // Helper to find unique low score
+      const findUniqueLow = (scores: { [playerId: string]: number }) => {
+        const values = Object.values(scores);
+        if (values.length === 0) return null;
+        const low = Math.min(...values);
+        const winners = Object.keys(scores).filter(id => scores[id] === low);
+        return winners.length === 1 ? winners[0] : null;
+      };
+
+      // Process each hole
+      for (let hole = 1; hole <= numHoles; hole++) {
+        carry++;
+        const scores = getHoleScores(hole);
+        const winnerId = findUniqueLow(scores);
+        
+        if (winnerId) {
+          const skinsWon = carry;
+          
+          // Each loser pays skinsSats per skin to the winner
+          const losers = playerIds.filter(id => id !== winnerId);
+          losers.forEach((playerId) => {
+            const payment = skinsSats * skinsWon;
+            ledger.push({
+              from: playerId,
+              to: winnerId,
+              amount: payment,
+              memo: `Hole ${hole} - ${skinsWon} skin${skinsWon > 1 ? 's' : ''}`
+            });
+          });
+          
+          breakdown.push({ 
+            hole: hole, 
+            winner: winnerId, 
+            skins: skinsWon,
+            scores: scores
+          });
+          carry = 0;
+        } else {
+          breakdown.push({
+            hole: hole,
+            result: "Tie - carry over",
+            scores: scores
+          });
+        }
+      }
+
+      setSkinsResults({ name: 'Skins', ledger, breakdown });
+    } else {
+      setSkinsResults(null);
+    }
+
+    // Run stableford scoring
+    if (enableStableford) {
+      const stablefordData = players.map(player => {
+        let totalPoints = 0;
+        const breakdown = { eagles: 0, birdies: 0, pars: 0, bogeys: 0, doubles: 0 };
+        (player.scores || []).forEach((score, idx) => {
+          const par = DEMO_COURSE_PARS[idx] ?? 4;
+          const netScore = useNetScoring ? score - Math.floor(player.handicap / 9) : score;
+          const diff = netScore - par;
+          let points = 0;
+          if (diff <= -2) {
+            points = 3; // Eagle or better
+            breakdown.eagles++;
+          } else if (diff === -1) {
+            points = 2; // Birdie
+            breakdown.birdies++;
+          } else if (diff === 0) {
+            points = 1; // Par
+            breakdown.pars++;
+          } else if (diff === 1) {
+            points = 0; // Bogey
+            breakdown.bogeys++;
+          } else {
+            points = -1; // Double bogey or worse
+            breakdown.doubles++;
+          }
+          totalPoints += points;
+        });
+        return {
+          playerId: player.playerId,
+          name: player.name,
+          points: totalPoints,
+          breakdown
+        };
+      });
+      
+      // Sort by points descending
+      stablefordData.sort((a, b) => b.points - a.points);
+      
+      // Assign positions
+      const leaderboard = stablefordData.map((player, idx) => ({
+        ...player,
+        position: idx + 1
+      }));
+      
+      setStablefordResults({ leaderboard });
+    } else {
+      setStablefordResults(null);
+    }
 
     // Run snake game engine
-    const snakeData = convertToSnakeData(coreData);
-    const snakeConfig: SnakeConfig = {
-      penaltyAmount: 1000,
-      distributeToGroup: false
-    };
-    const snakeResult = snakeEngine(snakeData, snakeConfig);
-    setSnakeResults(snakeResult);
+    if (enableSnake) {
+      const coreData = convertToRoundData(players);
+      
+      // Create snake data with actual putts from players
+      const puttsData: { [playerId: string]: { [hole: number]: number } } = {};
+      players.forEach(player => {
+        puttsData[player.playerId] = {};
+        (player.putts || []).forEach((puttCount, idx) => {
+          puttsData[player.playerId]![idx + 1] = puttCount;
+        });
+      });
+      
+      const snakeData = {
+        ...coreData,
+        putts: puttsData
+      };
+      
+      const snakeConfig: SnakeConfig = {
+        penaltyAmount: snakeSats,
+        distributeToGroup: false
+      };
+      const snakeResult = snakeEngine(snakeData, snakeConfig);
+      setSnakeResults(snakeResult);
+    } else {
+      setSnakeResults(null);
+    }
   };
 
   const formatSats = (sats: number) => {
@@ -146,36 +325,27 @@ export const ScoringEngineDemo: React.FC<ScoringEngineDemoProps> = ({ className 
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             ⚡ Scoring Engine Demo
-            <Badge variant="outline">Lightning Network</Badge>
           </CardTitle>
           <CardDescription>
-            Process multiple golf game modes: Nassau, Skins, Stroke Play, Match Play, Dots, and Snake with Lightning Network settlement
+            Process multiple golf game modes: Stroke Play, Skins, Snake, and Stableford
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Lightning Settlement - Top Priority */}
-          {netSettlement.length > 0 && (
-            <div>
-              <h3 className="font-semibold mb-3 text-purple-600 flex items-center gap-2">
-                ⚡ Optimized Lightning Settlement
-                <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
-                  Final Result
-                </Badge>
-              </h3>
-              <div className="space-y-2">
-                {netSettlement.map((payment, index) => (
-                  <div key={index} className="flex justify-between p-4 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg">
-                    <span className="font-medium text-lg">
-                      {samplePlayers.find(p => p.playerId === payment.from)?.name} pays {samplePlayers.find(p => p.playerId === payment.to)?.name}
-                    </span>
-                    <span className="font-mono font-bold text-purple-600 text-lg">
-                      {formatSats(payment.amount)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
+          {/* Snake Visualization */}
+          {snakeResults && (
+            <SnakeVisualization
+              snakeResult={snakeResults}
+              playerNames={Object.fromEntries(players.map(p => [p.playerId, p.name]))}
+              playerScores={Object.fromEntries(
+                players.map(p => [
+                  p.playerId,
+                  p.scores || []
+                ])
+              )}
+              coursePars={DEMO_COURSE_PARS}
+            />
           )}
+
 
           {/* Stroke Play Results */}
           {strokeResults && (
@@ -185,7 +355,7 @@ export const ScoringEngineDemo: React.FC<ScoringEngineDemoProps> = ({ className 
               </h3>
               <div className="space-y-2">
                 {strokeResults.leaderboard.map((entry) => {
-                  const player = samplePlayers.find(p => p.playerId === entry.playerId);
+                  const player = players.find(p => p.playerId === entry.playerId);
                   const totals = strokeResults.totals[entry.playerId];
                   return (
                     <div key={entry.playerId} className="flex justify-between items-center p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
@@ -198,94 +368,145 @@ export const ScoringEngineDemo: React.FC<ScoringEngineDemoProps> = ({ className 
                         </div>
                       </div>
                       <span className="font-mono font-bold text-green-600 text-lg">
-                        {totals.gross} / {totals.net}
+                        {(totals?.gross ?? 0)} / {(totals?.net ?? 0)}
                       </span>
                     </div>
                   );
                 })}
               </div>
-            </div>
-          )}
-
-          {/* Match Play Results */}
-          {matchResults && (
-            <div>
-              <h3 className="font-semibold mb-3 text-blue-600 flex items-center gap-2">
-                🥊 Match Play
-              </h3>
-              <div className="space-y-2">
-                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                  <div className="flex justify-between items-center">
-                    <span className="font-medium text-lg">{matchResults.matchSummary}</span>
-                    <span className="font-mono font-bold text-blue-600 text-lg">
-                      {matchResults.finalStatus.winner ? '1-0' : '0-0'}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Player Stats */}
-                <div className="grid grid-cols-2 gap-2">
-                  {Object.entries(matchResults.totals).map(([playerId, totals]) => {
-                    const player = samplePlayers.find(p => p.playerId === playerId);
-                    return (
-                      <div key={playerId} className="p-3 bg-gray-50 dark:bg-gray-800 rounded border">
-                        <div className="font-medium">{player?.name}</div>
-                        <div className="text-sm text-muted-foreground">
-                          Won: {totals.holesWon} | Lost: {totals.holesLost} | Tied: {totals.holesTied}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+              <div className="flex justify-end mt-1">
+                <span className="text-xs text-muted-foreground mr-4">Gross / Net</span>
               </div>
             </div>
           )}
 
-          {/* Dots Game Results */}
-          {dotsResults && (
+          {/* Skins Results */}
+          {skinsResults && (
             <div>
-              <h3 className="font-semibold mb-3 text-orange-600 flex items-center gap-2">
-                🎯 Dots Game (Points)
+              <h3 className="font-semibold mb-3 text-blue-600 flex items-center gap-2">
+                💰 Skins Game
               </h3>
               <div className="space-y-2">
-                {/* Summary */}
-                <div className="p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="font-medium text-lg">Total Dots Earned</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    {Object.entries(dotsResults.totals).map(([playerId, totals]) => {
-                      const player = samplePlayers.find(p => p.playerId === playerId);
-                      return (
-                        <div key={playerId} className="text-center">
-                          <div className="font-medium">{player?.name}</div>
-                          <div className="text-2xl font-bold text-orange-600">{totals.totalDots}</div>
+                {/* Hole by hole breakdown */}
+                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                  <div className="font-medium text-sm mb-2">Hole-by-Hole Results</div>
+                  <div className="space-y-1 max-h-48 overflow-y-auto">
+                    {(skinsResults.breakdown as { hole: number; winner?: string; skins?: number; result?: string; scores?: { [playerId: string]: number } }[]).map((holeResult, idx) => (
+                      <div key={idx} className="text-xs py-1 border-b border-blue-100 dark:border-blue-800 last:border-0">
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="font-medium">Hole {holeResult.hole}</span>
+                          {holeResult.winner ? (
+                            <span className="text-blue-600 font-semibold">
+                              {players.find(p => p.playerId === holeResult.winner)?.name} wins {holeResult.skins} skin{holeResult.skins && holeResult.skins > 1 ? 's' : ''}
+                            </span>
+                          ) : (
+                            <span className="text-gray-500">{holeResult.result}</span>
+                          )}
                         </div>
-                      );
-                    })}
+                        {holeResult.scores && (
+                          <div className="flex gap-3 text-xs text-muted-foreground ml-2">
+                            {Object.entries(holeResult.scores).map(([playerId, score]) => {
+                              const player = players.find(p => p.playerId === playerId);
+                              const isWinner = playerId === holeResult.winner;
+                              return (
+                                <span key={playerId} className={isWinner ? 'font-semibold text-blue-600' : ''}>
+                                  {player?.name.split(' ')[0]}: {score}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 </div>
-
-                {/* Payments */}
-                {dotsResults.payments && dotsResults.payments.length > 0 && (
-                  <div className="space-y-2">
-                    <h4 className="font-medium text-sm">Payments</h4>
-                    {dotsResults.payments.map((payment, index) => {
-                      const fromPlayer = samplePlayers.find(p => p.playerId === payment.from);
-                      const toPlayer = samplePlayers.find(p => p.playerId === payment.to);
-                      return (
-                        <div key={index} className="flex justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded border">
-                          <span className="font-medium">
-                            {fromPlayer?.name} pays {toPlayer?.name}
-                          </span>
-                          <span className="font-mono font-bold text-orange-600">
-                            {formatSats(payment.amount)}
-                          </span>
-                        </div>
-                      );
-                    })}
+                {/* Payment summary */}
+                {skinsResults.ledger.length > 0 && (
+                  <div className="p-4 bg-blue-100 dark:bg-blue-900/30 border border-blue-300 dark:border-blue-700 rounded-lg">
+                    <div className="font-medium text-sm mb-2">Payment Summary</div>
+                    <div className="space-y-1">
+                      {(() => {
+                        // Calculate net payments for each player
+                        const netPayments: Record<string, number> = {};
+                        skinsResults.ledger.forEach(payment => {
+                          netPayments[payment.from] = (netPayments[payment.from] || 0) - payment.amount;
+                          netPayments[payment.to] = (netPayments[payment.to] || 0) + payment.amount;
+                        });
+                        
+                        // Display net position for each player
+                        return Object.entries(netPayments)
+                          .sort((a, b) => b[1] - a[1]) // Sort by amount (winners first)
+                          .map(([playerId, amount]) => {
+                            const player = players.find(p => p.playerId === playerId);
+                            const isWinner = amount > 0;
+                            return (
+                              <div key={playerId} className="flex justify-between text-sm">
+                                <span className="font-medium">{player?.name}</span>
+                                <span className={`font-mono font-bold ${isWinner ? 'text-green-600' : 'text-red-600'}`}>
+                                  {isWinner ? '+' : ''}{formatSats(amount)}
+                                </span>
+                              </div>
+                            );
+                          });
+                      })()}
+                    </div>
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* Stableford Results */}
+          {stablefordResults && (
+            <div>
+              <h3 className="font-semibold mb-3 text-orange-600 flex items-center gap-2">
+                📊 Stableford Points
+              </h3>
+              <div className="space-y-2">
+                {stablefordResults.leaderboard.map((entry) => (
+                  <div key={entry.playerId} className="p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
+                    {/* Player header */}
+                    <div className="flex justify-between items-center mb-3">
+                      <div className="flex items-center gap-3">
+                        <span className="font-bold text-lg min-w-[2rem]">
+                          {entry.position}.
+                        </span>
+                        <span className="font-medium text-lg">{entry.name}</span>
+                      </div>
+                      <span className="font-mono font-bold text-orange-600 text-lg">
+                        {entry.points} pts
+                      </span>
+                    </div>
+                    {/* Breakdown */}
+                    <div className="grid grid-cols-5 gap-2 text-center text-sm pt-3 border-t border-orange-200 dark:border-orange-700">
+                      <div>
+                        <div className="font-bold text-orange-600">{entry.breakdown.eagles}</div>
+                        <div className="text-xs text-muted-foreground">Eagles</div>
+                        <div className="text-xs font-mono text-orange-500">{entry.breakdown.eagles * 3} pts</div>
+                      </div>
+                      <div>
+                        <div className="font-bold text-orange-600">{entry.breakdown.birdies}</div>
+                        <div className="text-xs text-muted-foreground">Birdies</div>
+                        <div className="text-xs font-mono text-orange-500">{entry.breakdown.birdies * 2} pts</div>
+                      </div>
+                      <div>
+                        <div className="font-bold text-orange-600">{entry.breakdown.pars}</div>
+                        <div className="text-xs text-muted-foreground">Pars</div>
+                        <div className="text-xs font-mono text-orange-500">{entry.breakdown.pars * 1} pts</div>
+                      </div>
+                      <div>
+                        <div className="font-bold text-gray-500">{entry.breakdown.bogeys}</div>
+                        <div className="text-xs text-muted-foreground">Bogeys</div>
+                        <div className="text-xs font-mono text-gray-400">0 pts</div>
+                      </div>
+                      <div>
+                        <div className="font-bold text-gray-500">{entry.breakdown.doubles}</div>
+                        <div className="text-xs text-muted-foreground">Dbl+</div>
+                        <div className="text-xs font-mono text-red-500">{entry.breakdown.doubles * -1} pts</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}
@@ -305,12 +526,12 @@ export const ScoringEngineDemo: React.FC<ScoringEngineDemoProps> = ({ className 
                       {snakeResults.snakePasses} snake passes
                     </span>
                   </div>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-4 gap-2">
                     {Object.entries(snakeResults.threePuttSummary).map(([playerId, count]) => {
-                      const player = samplePlayers.find(p => p.playerId === playerId);
+                      const player = players.find(p => p.playerId === playerId);
                       return (
                         <div key={playerId} className="text-center">
-                          <div className="font-medium">{player?.name}</div>
+                          <div className="font-medium text-sm">{player?.name}</div>
                           <div className="text-xl font-bold text-red-600">{count}</div>
                           <div className="text-xs text-muted-foreground">three-putts</div>
                         </div>
@@ -320,17 +541,15 @@ export const ScoringEngineDemo: React.FC<ScoringEngineDemoProps> = ({ className 
                 </div>
 
                 {/* Snake Holder & Penalty */}
-                {snakeResults.finalSnakeHolder && (
+                {snakeResults.finalSnakeHolder && snakeResults.penalty && (
                   <div className="p-4 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded-lg">
                     <div className="flex justify-between items-center">
                       <span className="font-medium text-lg">
-                        🐍 {samplePlayers.find(p => p.playerId === snakeResults.finalSnakeHolder)?.name} holds the snake!
+                        🐍 {players.find(p => p.playerId === snakeResults.finalSnakeHolder)?.name} holds the snake!
                       </span>
-                      {snakeResults.penalty && (
-                        <span className="font-mono font-bold text-red-600 text-lg">
-                          -{formatSats(snakeResults.penalty.amount)}
-                        </span>
-                      )}
+                      <span className="font-mono font-bold text-red-600 text-lg">
+                        Owes {formatSats(snakeResults.penalty.amount)}
+                      </span>
                     </div>
                   </div>
                 )}
@@ -338,7 +557,7 @@ export const ScoringEngineDemo: React.FC<ScoringEngineDemoProps> = ({ className 
             </div>
           )}
 
-          {/* Sample Players - Collapsible */}
+          {/* Sample Players - Editable */}
           <Collapsible open={showSampleData} onOpenChange={setShowSampleData}>
             <CollapsibleTrigger asChild>
               <Button variant="ghost" className="w-full justify-between p-0 h-auto">
@@ -346,13 +565,67 @@ export const ScoringEngineDemo: React.FC<ScoringEngineDemoProps> = ({ className 
                 {showSampleData ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
               </Button>
             </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-3 mt-3">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                {samplePlayers.map(player => (
-                  <div key={player.playerId} className="p-3 border rounded-lg">
-                    <div className="font-medium">{player.name}</div>
-                    <div className="text-sm text-muted-foreground">
-                      Total: {player.total} | Handicap: {player.handicap}
+            <CollapsibleContent className="space-y-4 mt-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {players.map(player => (
+                  <div key={player.playerId} className="p-4 border rounded-lg space-y-3">
+                    <div className="font-semibold">{player.name}</div>
+                    
+                    {/* Handicap */}
+                    <div>
+                      <label className="text-sm font-medium">Handicap</label>
+                      <input
+                        type="number"
+                        value={player.handicap}
+                        onChange={(e) => updatePlayerHandicap(player.playerId, parseInt(e.target.value) || 0)}
+                        className="w-full px-2 py-1 border rounded text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                      />
+                    </div>
+
+                    {/* Scores Grid */}
+                    <div>
+                      <label className="text-sm font-medium block mb-2">Scores (9 holes)</label>
+                      <div className="grid grid-cols-9 gap-1">
+                        {Array.from({ length: 9 }).map((_, idx) => (
+                          <div key={idx}>
+                            <label className="text-xs text-gray-500 block">{idx + 1}</label>
+                            <input
+                              type="number"
+                              value={player.scores?.[idx] || ''}
+                              onChange={(e) => updatePlayerScore(player.playerId, idx, parseInt(e.target.value) || 0)}
+                              className="w-full px-1 py-1 border rounded text-sm text-center bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-semibold"
+                              min="1"
+                              max="13"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Putts Grid */}
+                    <div>
+                      <label className="text-sm font-medium block mb-2">Putts (9 holes)</label>
+                      <div className="grid grid-cols-9 gap-1">
+                        {Array.from({ length: 9 }).map((_, idx) => (
+                          <div key={idx}>
+                            <label className="text-xs text-gray-500 block">{idx + 1}</label>
+                            <input
+                              type="number"
+                              value={player.putts?.[idx] || ''}
+                              onChange={(e) => updatePlayerPutts(player.playerId, idx, parseInt(e.target.value) || 0)}
+                              className="w-full px-1 py-1 border rounded text-sm text-center bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-semibold"
+                              min="0"
+                              max="10"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Summary */}
+                    <div className="text-sm pt-2 border-t">
+                      <div>Total Score: <span className="font-semibold">{player.total}</span></div>
+                      <div>Total Putts: <span className="font-semibold">{(player.putts || []).reduce((a, b) => a + b, 0)}</span></div>
                     </div>
                   </div>
                 ))}
@@ -360,7 +633,7 @@ export const ScoringEngineDemo: React.FC<ScoringEngineDemoProps> = ({ className 
             </CollapsibleContent>
           </Collapsible>
 
-          {/* Game Configuration - Collapsible */}
+          {/* Game Configuration - Configurable */}
           <Collapsible open={showGameConfig} onOpenChange={setShowGameConfig}>
             <CollapsibleTrigger asChild>
               <Button variant="ghost" className="w-full justify-between p-0 h-auto">
@@ -368,31 +641,125 @@ export const ScoringEngineDemo: React.FC<ScoringEngineDemoProps> = ({ className 
                 {showGameConfig ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
               </Button>
             </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-3 mt-3">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                <div className="p-3 border rounded-lg">
-                  <div className="font-medium">Nassau</div>
-                  <div className="text-sm text-muted-foreground">1,000 sats per match</div>
-                </div>
-                <div className="p-3 border rounded-lg">
-                  <div className="font-medium">Skins</div>
-                  <div className="text-sm text-muted-foreground">500 sats per skin, 4 carry cap</div>
-                </div>
-                <div className="p-3 border rounded-lg">
-                  <div className="font-medium">Dots Game</div>
-                  <div className="text-sm text-muted-foreground">100 sats per dot difference</div>
-                </div>
-                <div className="p-3 border rounded-lg">
-                  <div className="font-medium">Snake</div>
-                  <div className="text-sm text-muted-foreground">1,000 sats penalty for holder</div>
+            <CollapsibleContent className="space-y-4 mt-4">
+              {/* Game Mode Selection */}
+              <div>
+                <h4 className="font-medium mb-3">Select Game Modes</h4>
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={enableStroke}
+                      onChange={(e) => setEnableStroke(e.target.checked)}
+                      className="w-4 h-4"
+                    />
+                    <span>Stroke Play (Net Scoring)</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={enableSkins}
+                      onChange={(e) => setEnableSkins(e.target.checked)}
+                      className="w-4 h-4"
+                    />
+                    <span>Skins (Per-Hole)</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={enableSnake}
+                      onChange={(e) => setEnableSnake(e.target.checked)}
+                      className="w-4 h-4"
+                    />
+                    <span>Snake Game</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={enableStableford}
+                      onChange={(e) => setEnableStableford(e.target.checked)}
+                      className="w-4 h-4"
+                    />
+                    <span>Stableford (Points)</span>
+                  </label>
                 </div>
               </div>
+
+              {/* Stroke Play Configuration */}
+              {enableStroke && (
+                <div className="p-3 bg-green-50 dark:bg-green-900/10 rounded border border-green-200 dark:border-green-800">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={useNetScoring}
+                      onChange={(e) => setUseNetScoring(e.target.checked)}
+                      className="w-4 h-4"
+                    />
+                    <span className="font-medium text-sm">Use Net Scoring (with handicap)</span>
+                  </label>
+                </div>
+              )}
+
+              {/* Skins Configuration */}
+              {enableSkins && (
+                <div className="p-3 bg-blue-50 dark:bg-blue-900/10 rounded border border-blue-200 dark:border-blue-800 space-y-2">
+                  <label className="font-medium text-sm block">Skins Value (sats per player)</label>
+                  <input
+                    type="number"
+                    value={skinsSats}
+                    onChange={(e) => setSkinsSats(e.target.value === '' ? 0 : parseInt(e.target.value))}
+                    onFocus={(e) => e.target.select()}
+                    className="w-full px-3 py-2 border rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-semibold"
+                    min="100"
+                    step="100"
+                    placeholder="0"
+                  />
+                  <p className="text-xs text-gray-600 dark:text-gray-400">
+                    Each loser pays {formatSats(skinsSats)} per skin to the winner (ties carry over)
+                  </p>
+                </div>
+              )}
+
+              {/* Stableford Configuration */}
+              {enableStableford && (
+                <div className="p-3 bg-orange-50 dark:bg-orange-900/10 rounded border border-orange-200 dark:border-orange-800 space-y-2">
+                  <p className="font-medium text-sm">Stableford Point Scoring</p>
+                  <p className="text-xs text-gray-600 dark:text-gray-400">
+                    Eagle: +3pts | Birdie: +2pts | Par: +1pt | Bogey: 0pts | Double+: -1pt
+                  </p>
+                </div>
+              )}
+
+              {/* Snake Configuration */}
+              {enableSnake && (
+                <div className="p-3 bg-red-50 dark:bg-red-900/10 rounded border border-red-200 dark:border-red-800 space-y-2">
+                  <label className="font-medium text-sm block">Snake Penalty (sats)</label>
+                  <input
+                    type="number"
+                    value={snakeSats}
+                    onChange={(e) => setSnakeSats(e.target.value === '' ? 0 : parseInt(e.target.value))}
+                    onFocus={(e) => e.target.select()}
+                    className="w-full px-3 py-2 border rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-semibold"
+                    min="100"
+                    step="100"
+                    placeholder="0"
+                  />
+                  <p className="text-xs text-gray-600 dark:text-gray-400">
+                    Final snake holder pays this amount split among other players
+                  </p>
+                </div>
+              )}
             </CollapsibleContent>
           </Collapsible>
 
-          <Button onClick={processRound} className="w-full" size="lg">
-            Process All Game Modes & Calculate Settlements
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={generateNewSimulation} variant="outline" className="flex-1" size="lg">
+              🎲 New Simulation
+            </Button>
+            <Button onClick={processRound} className="flex-1" size="lg">
+              ⚡ Process Round
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>

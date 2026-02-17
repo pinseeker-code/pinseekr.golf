@@ -1,4 +1,6 @@
 // Core stroke play engine implementation
+import { adjustHandicapsForFormat, type GameFormat } from './handicapUtils';
+
 export interface CoreRoundData {
   players: string[];
   strokes: { [playerId: string]: { [hole: number]: number } };
@@ -13,6 +15,8 @@ export interface CoreRoundData {
 export interface StrokeConfig {
   useNet: boolean;
   maxScoreRule?: MaxScoreRule;
+  format?: GameFormat; // For format-specific handicap adjustments (90% for best-ball, etc.)
+  useHandicapDifferential?: boolean; // For match play: use difference instead of raw handicaps
 }
 
 export interface MaxScoreRule {
@@ -94,10 +98,10 @@ export function rankPlayers(totals: { [playerId: string]: PlayerTotals }, useNet
   // Assign positions (handle ties)
   let currentPosition = 1;
   for (let i = 0; i < entries.length; i++) {
-    if (i > 0 && entries[i].score !== entries[i - 1].score) {
+    if (i > 0 && (entries[i]?.score ?? 0) !== (entries[i - 1]?.score ?? 0)) {
       currentPosition = i + 1;
     }
-    entries[i].position = currentPosition;
+    entries[i]!.position = currentPosition;
   }
 
   return entries;
@@ -105,6 +109,13 @@ export function rankPlayers(totals: { [playerId: string]: PlayerTotals }, useNet
 
 /**
  * Calculate handicap "pops" (strokes received) for each hole
+ * 
+ * Follows USGA handicap stroke allocation rules:
+ * - Stroke index 1 = hardest hole, gets strokes first
+ * - Stroke index 18 = easiest hole, gets strokes last
+ * - Player with handicap 10: gets 1 stroke on holes with stroke index 1-10
+ * - Player with handicap 20: gets 1 stroke on all 18 holes, plus 1 on holes 1-2
+ * - Player with handicap 36: gets 2 strokes on all holes
  */
 export function calculatePops(playerHandicap: number, holes: { [hole: number]: { strokeIndex: number } }): { [hole: number]: number } {
   const pops: { [hole: number]: number } = {};
@@ -113,12 +124,18 @@ export function calculatePops(playerHandicap: number, holes: { [hole: number]: {
   for (let hole = 1; hole <= 18; hole++) {
     const strokeIndex = holes[hole]?.strokeIndex || hole;
     
-    // Player gets 1 stroke on holes where their handicap is >= stroke index
-    // Plus additional strokes if handicap > 18
-    const baseStrokes = playerHandicap >= strokeIndex ? 1 : 0;
-    const extraStrokes = playerHandicap > 18 ? Math.floor((playerHandicap - strokeIndex) / 18) : 0;
+    // Calculate how many strokes player gets on this hole
+    // Stroke index 1-18, where 1 is hardest
+    // Player with handicap N gets strokes on holes with stroke index <= N (mod 18)
     
-    pops[hole] = baseStrokes + extraStrokes;
+    // Number of full rounds through all 18 holes
+    const fullRounds = Math.floor(playerHandicap / 18);
+    
+    // Remaining strokes after full rounds
+    const remainder = playerHandicap % 18;
+    
+    // Player gets strokes equal to full rounds, plus 1 more if stroke index <= remainder
+    pops[hole] = fullRounds + (strokeIndex <= remainder ? 1 : 0);
   }
   
   return pops;
@@ -147,7 +164,8 @@ export function strokeEngine(data: CoreRoundData, cfg: StrokeConfig): StrokeLaye
 
       // Apply maximum score rule if specified
       if (cfg.maxScoreRule && data.course.holes[hole]) {
-        netScore = applyMaxScore(netScore, cfg.maxScoreRule, data.course.holes[hole]);
+        const holeInfo = (data.course.holes[hole] ?? { par: 4 }) as { par: number };
+        netScore = applyMaxScore(netScore, cfg.maxScoreRule, holeInfo);
       }
 
       net += netScore;
@@ -178,10 +196,17 @@ export function strokeEngine(data: CoreRoundData, cfg: StrokeConfig): StrokeLaye
 
 /**
  * Helper function to convert existing PlayerInRound data to CoreRoundData format
+ * 
+ * @param players - Array of players with scores and handicaps
+ * @param courseData - Optional course data with holes and stroke indices
+ * @param format - Optional game format for handicap adjustment
+ * @param useHandicapDifferential - For match play, use handicap difference
  */
 export function convertToRoundData(
   players: Array<{ playerId: string; scores: number[]; handicap: number }>,
-  courseData?: { holes: { [hole: number]: { par: number; strokeIndex: number } } }
+  courseData?: { holes: { [hole: number]: { par: number; strokeIndex: number } } },
+  format?: GameFormat,
+  useHandicapDifferential?: boolean
 ): CoreRoundData {
   const strokes: { [playerId: string]: { [hole: number]: number } } = {};
   const pops: { [playerId: string]: { [hole: number]: number } } = {};
@@ -198,15 +223,24 @@ export function convertToRoundData(
 
   const course = courseData || defaultCourse;
 
+  // Apply format-specific handicap adjustments if format provided
+  const rawHandicaps: Record<string, number> = {};
+  players.forEach(p => { rawHandicaps[p.playerId] = p.handicap; });
+  
+  const adjustedHandicaps = format 
+    ? adjustHandicapsForFormat(rawHandicaps, format, useHandicapDifferential)
+    : rawHandicaps;
+
   for (const player of players) {
     // Convert scores array to hole-indexed object
     strokes[player.playerId] = {};
     for (let hole = 1; hole <= 18; hole++) {
-      strokes[player.playerId][hole] = player.scores[hole - 1] || 0;
+      strokes[player.playerId]![hole] = player.scores?.[hole - 1] ?? 0;
     }
 
-    // Calculate handicap pops for each hole
-    pops[player.playerId] = calculatePops(player.handicap, course.holes);
+    // Calculate handicap pops for each hole using adjusted handicap
+    const adjustedHcp = adjustedHandicaps[player.playerId];
+    pops[player.playerId] = calculatePops(adjustedHcp || 0, course.holes);
   }
 
   return {

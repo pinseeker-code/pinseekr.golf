@@ -1,5 +1,5 @@
 import { useNostr } from '@nostrify/react';
-import { GOLF_KINDS } from '@/lib/golf/types';
+import { APP_KIND } from '@/lib/golf/types';
 import { useQuery } from '@tanstack/react-query';
 import type { NostrEvent, NostrFilter } from '@nostrify/nostrify';
 import { type GolfCourse } from './useGolfCourses';
@@ -18,23 +18,23 @@ export function useDiscoverCourses(filters: CourseSearchFilters = {}) {
   return useQuery({
     queryKey: ['discover-courses', filters],
     queryFn: async (c) => {
-      const signal = AbortSignal.any([c.signal, AbortSignal.timeout(3000)]);
+      const signal = AbortSignal.any([c.signal, AbortSignal.timeout(8000)]); // 8s for discovery queries
       
       // Build filter for course discovery
       const searchFilters: NostrFilter[] = [{
-        kinds: [GOLF_KINDS.COURSE], // Golf course kind
-        '#t': ['golf-course'], // Ensure we only get golf courses
+        kinds: [APP_KIND], // App-level canonical kind
+        '#t': ['golf', 'golf-course'], // Ensure we only get golf courses
         limit: filters.limit || 50,
       }];
 
       // Add tag filters if specified
-      if (filters.tags && filters.tags.length > 0) {
-        // Combine with existing golf-course tag
-        searchFilters[0]['#t'] = ['golf-course', ...filters.tags];
+      if (filters.tags && filters.tags.length > 0 && searchFilters[0]) {
+        // Combine with required app tags
+        searchFilters[0]['#t'] = ['golf', 'golf-course', ...filters.tags];
       }
 
       // Add author filter if specified
-      if (filters.author) {
+      if (filters.author && searchFilters[0]) {
         searchFilters[0].authors = [filters.author];
       }
 
@@ -64,7 +64,7 @@ export function useDiscoverCourses(filters: CourseSearchFilters = {}) {
       }
 
       // Deduplicate courses by name - keep the most recent version
-      const dedupeMap = new Map<string, typeof filteredCourses[0]>();
+      const dedupeMap = new Map<string, GolfCourse>();
       for (const course of filteredCourses) {
         const key = course.name.toLowerCase().trim();
         const existing = dedupeMap.get(key);
@@ -84,19 +84,26 @@ export function useDiscoverCourses(filters: CourseSearchFilters = {}) {
 }
 
 function validateCourseEvent(event: NostrEvent): boolean {
-  // Check if it's a golf course event
-  if (event.kind !== GOLF_KINDS.COURSE) return false;
+  // Check if it's a golf course event under the new APP_KIND
+  if (event.kind !== APP_KIND) return false;
+
+  // Require both app 't' tags: 'golf' and 'golf-course'
+  const tValues = event.tags
+    .filter(tag => tag[0] === 't')
+    .map(tag => tag[1] ?? '')
+    .filter(v => v !== '');
+  if (!tValues.includes('golf') || !tValues.includes('golf-course')) return false;
 
   // Check for required tags
-  const dTag = event.tags.find(([name]) => name === 'd')?.[1];
-  const nameTag = event.tags.find(([name]) => name === 'name')?.[1];
-  const locationTag = event.tags.find(([name]) => name === 'location')?.[1];
+  const dTag = event.tags.find(tag => tag[0] === 'd')?.[1];
+  const nameTag = event.tags.find(tag => tag[0] === 'name')?.[1];
+  const locationTag = event.tags.find(tag => tag[0] === 'location')?.[1];
 
   // All courses require 'd', 'name', and 'location' tags
   if (!dTag || !nameTag || !locationTag) return false;
 
   // Check for at least some holes
-  const holeCount = event.tags.filter(([name]) => name.startsWith('hole')).length;
+  const holeCount = event.tags.filter(tag => tag[0]?.startsWith('hole')).length;
   if (holeCount < 9) return false; // Minimum 9 holes
 
   return true;
@@ -119,30 +126,35 @@ function parseEventToCourse(event: NostrEvent): GolfCourse | null {
     let totalPar = 0;
     
     event.tags.forEach(tag => {
+      const tagName = tag[0];
+      const tagValue = tag[1];
+      
+      if (!tagName) return;
+      
       // Find all tags that start with "hole" followed by a number
-      if (tag[0].startsWith('hole') && tag[0] !== 'hole') {
-        const holeNumber = parseInt(tag[0].replace('hole', ''));
+      if (tagName.startsWith('hole') && tagName !== 'hole') {
+        const holeNumber = parseInt(tagName.replace('hole', ''));
         if (!isNaN(holeNumber) && holeNumber > 0) {
-          const par = parseInt(tag[1] || '4');
+          const par = parseInt(tagValue ?? '4');
           holes[holeNumber] = par;
           totalPar += par;
         }
       }
       
       // Find section name tags
-      if (tag[0].startsWith('section') && tag[1]) {
-        const sectionIndex = parseInt(tag[0].replace('section', ''));
+      if (tagName.startsWith('section') && tagValue) {
+        const sectionIndex = parseInt(tagName.replace('section', ''));
         if (!isNaN(sectionIndex)) {
-          sections[sectionIndex] = tag[1];
+          sections[sectionIndex] = tagValue;
         }
       }
     });
 
-    // Get course tags for categorization (excluding system tags)
+    // Get course tags for categorization (excluding system tags 'golf' and 'golf-course')
     const courseTags = event.tags
-      .filter(([name]) => name === 't')
-      .map(([, value]) => value)
-      .filter((tag): tag is string => !!tag && tag !== 'golf-course');
+      .filter(tag => tag[0] === 't')
+      .map(tag => tag[1] ?? '')
+      .filter((tag): tag is string => tag !== '' && tag !== 'golf-course' && tag !== 'golf');
 
     return {
       id: dTag,

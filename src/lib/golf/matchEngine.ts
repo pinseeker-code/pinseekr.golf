@@ -3,6 +3,7 @@ import { type CoreRoundData } from './strokeEngine';
 export interface MatchConfig {
   useNet: boolean;
   format?: 'head-to-head' | 'best-ball' | 'scramble';
+  useHandicapDifferential?: boolean; // Use handicap difference (lower plays scratch, higher gets strokes)
 }
 
 export interface MatchHoleResult {
@@ -50,13 +51,17 @@ export function matchEngine(data: CoreRoundData, config: MatchConfig): MatchResu
     throw new Error('Match play requires exactly 2 players');
   }
 
-  const [player1, player2] = players;
+  const [player1, player2] = players as [string, string];
   const holeResults: MatchHoleResult[] = [];
   let player1HolesWon = 0;
   let player2HolesWon = 0;
   let tiedHoles = 0;
 
   // Process each hole
+  // Track when match was mathematically decided (dormie), but continue playing all 18
+  let matchDecidedAtHole: number | null = null;
+  let marginWhenDecided = 0;
+  
   for (let hole = 1; hole <= 18; hole++) {
     const player1Strokes = strokes[player1]?.[hole] || 0;
     const player2Strokes = strokes[player2]?.[hole] || 0;
@@ -96,6 +101,15 @@ export function matchEngine(data: CoreRoundData, config: MatchConfig): MatchResu
       scores: { [player1]: player1Strokes, [player2]: player2Strokes },
       netScores: { [player1]: player1Net, [player2]: player2Net }
     });
+
+    // Check if match is mathematically decided (but continue playing)
+    const currentMargin = Math.abs(player1HolesWon - player2HolesWon);
+    const holesRemaining = 18 - hole;
+    
+    if (matchDecidedAtHole === null && currentMargin > holesRemaining) {
+      matchDecidedAtHole = hole;
+      marginWhenDecided = currentMargin;
+    }
   }
 
   // Calculate final status
@@ -133,16 +147,15 @@ export function matchEngine(data: CoreRoundData, config: MatchConfig): MatchResu
   let matchSummary: string;
   if (finalWinner) {
     const winnerName = finalWinner;
-    if (finalMargin === 1) {
+    
+    if (matchDecidedAtHole !== null) {
+      // Match was decided early, show dormie format (e.g., "5 & 4")
+      const holesRemainingAtDecision = 18 - matchDecidedAtHole;
+      matchSummary = `${winnerName} wins ${marginWhenDecided} & ${holesRemainingAtDecision}`;
+    } else if (finalMargin === 1) {
       matchSummary = `${winnerName} wins 1 up`;
     } else {
-      const holesRemaining = 18 - Math.max(player1HolesWon, player2HolesWon) - tiedHoles;
-      if (finalMargin > holesRemaining) {
-        // Match ended early
-        matchSummary = `${winnerName} wins ${finalMargin} & ${holesRemaining}`;
-      } else {
-        matchSummary = `${winnerName} wins ${finalMargin} up`;
-      }
+      matchSummary = `${winnerName} wins ${finalMargin} up`;
     }
   } else {
     matchSummary = 'Match tied';
@@ -151,7 +164,7 @@ export function matchEngine(data: CoreRoundData, config: MatchConfig): MatchResu
   const finalStatus: MatchStatus = {
     leader: finalWinner,
     margin: finalMargin,
-    holesRemaining: 0,
+    holesRemaining: 0, // All 18 holes are played
     isComplete: true,
     winner: finalWinner
   };
@@ -237,11 +250,11 @@ export function convertToMatchData(players: Array<{ playerId: string; scores: nu
     
     player.scores.forEach((score, index) => {
       const hole = index + 1;
-      strokes[player.playerId][hole] = score;
+      strokes[player.playerId]![hole] = score;
       // Calculate handicap strokes: base strokes + extra stroke if hole index <= remainder
       // Distributes handicap strokes evenly: handicap 10 = 1 stroke on holes 1-10
       // Handicap 20 = 1 stroke on all holes + 1 more on holes 1-2
-      handicapPops[player.playerId][hole] = Math.floor(hcp / 18) + (hole <= (hcp % 18) ? 1 : 0);
+      handicapPops[player.playerId]![hole] = Math.floor(hcp / 18) + (hole <= (hcp % 18) ? 1 : 0);
     });
   });
 

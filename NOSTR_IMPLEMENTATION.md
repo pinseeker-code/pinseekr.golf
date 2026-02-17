@@ -295,21 +295,76 @@ The app uses a **Grain relay** as the primary relay, with a fallback for discove
 
 ### Kind Whitelist (Grain Config)
 
-The relay only accepts these event kinds:
-- `0` - User metadata
-- `1` - Short text notes
-- `3` - Contacts
-- `4` - Encrypted DMs (invites)
-- `5` - Event deletion
-- `6` - Repost
-- `7` - Reaction
+The relay must accept these event kinds for full compatibility:
+
+**Core Protocol:**
+- `0` - User metadata (NIP-01)
+- `1` - Short text notes (NIP-01)
+- `3` - Contacts / follow list (NIP-02)
+- `4` - Encrypted DMs / invites (NIP-04)
+- `5` - Event deletion (NIP-09)
+- `6` - Repost (NIP-18)
+- `7` - Reaction (NIP-25)
+
+**Authentication & Remote Signing:**
+- `24133` - NIP-46 Nostr Connect (remote signing) ⚠️ **REQUIRED for QR login**
+- `22242` - NIP-42 Client auth (ephemeral, relay may exclude from broadcast)
+
+**Relay Discovery:**
+- `10002` - NIP-65 Relay list metadata
+
+**Social Features:**
 - `1111` - NIP-22 comments
+- `9735` - Zap receipts (NIP-57)
+
+**Golf-Specific (Custom):**
 - `36901` - Golf round
 - `36902` - Golf course
 - `36903` - Player score
 - `36904` - Golf profile
 - `36905` - Tournament
 - `36910` - Badge award
+
+### Full Grain Config Example
+
+```yaml
+# grain relay kind whitelist - full compatibility
+kinds:
+  # Core protocol
+  - 0      # metadata
+  - 1      # short text note
+  - 3      # contacts
+  - 4      # encrypted DM
+  - 5      # deletion
+  - 6      # repost
+  - 7      # reaction
+  
+  # Auth & remote signing
+  - 24133  # NIP-46 Nostr Connect ⚠️ REQUIRED
+  - 22242  # NIP-42 auth (optional)
+  
+  # Relay discovery
+  - 10002  # NIP-65 relay list
+  
+  # Social
+  - 1111   # NIP-22 comments
+  - 9735   # zap receipts
+  
+  # Golf custom kinds
+  - 36901  # golf round
+  - 36902  # golf course
+  - 36903  # player score
+  - 36904  # golf profile
+  - 36905  # tournament
+  - 36910  # badge award
+```
+
+### Verification
+
+After updating your Grain config, run:
+```bash
+node tools/test-nip46.js
+```
 
 **Files:** `NostrProvider.tsx`, `pyramid-relays.json`
 

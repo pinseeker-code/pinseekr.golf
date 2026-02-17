@@ -76,6 +76,7 @@ export function usePostComment() {
 
       const event = await publishEvent({
         kind: 1111,
+        created_at: Math.floor(Date.now() / 1000),
         content,
         tags,
       });

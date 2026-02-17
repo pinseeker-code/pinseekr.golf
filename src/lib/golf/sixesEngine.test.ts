@@ -103,9 +103,9 @@ describe('SixesEngine', () => {
       const result = sixesEngine(players);
 
       expect(result.segments).toHaveLength(3);
-      expect(result.segments[0].teams).toHaveLength(2); // Two teams in each segment
-      expect(result.segments[0].teams[0].players).toHaveLength(2); // Two players per team
-      expect(result.segments[0].teams[1].players).toHaveLength(2);
+      expect(result.segments[0]!.teams).toHaveLength(2); // Two teams in each segment
+      expect(result.segments[0]!.teams[0]!.players).toHaveLength(2); // Two players per team
+      expect(result.segments[0]!.teams[1]!.players).toHaveLength(2);
     });
 
     it('should handle 5+ players with balanced teams', () => {
@@ -158,7 +158,7 @@ describe('SixesEngine', () => {
       // For 5 players, teams should be balanced (3 vs 2, or 2 vs 3 depending on rotation)
       result.segments.forEach(segment => {
         expect(segment.teams.length).toBe(2);
-        expect(segment.teams[0].players.length + segment.teams[1].players.length).toBe(5);
+        expect(segment.teams[0]!.players.length + segment.teams[1]!.players.length).toBe(5);
       });
     });
   });
@@ -209,7 +209,7 @@ describe('SixesEngine', () => {
       }];
       const result4 = sixesEngine(players4);
       expect(result4.segments).toHaveLength(3);
-      expect(result4.segments[0].teams).toHaveLength(2);
+      expect(result4.segments[0]!.teams).toHaveLength(2);
 
       // Test 5 players
       const players5 = [...players4, {
@@ -224,7 +224,7 @@ describe('SixesEngine', () => {
       expect(result5.segments).toHaveLength(3);
       result5.segments.forEach(segment => {
         expect(segment.teams.length).toBe(2);
-        expect(segment.teams[0].players.length + segment.teams[1].players.length).toBe(5);
+        expect(segment.teams[0]!.players.length + segment.teams[1]!.players.length).toBe(5);
       });
     });
   });

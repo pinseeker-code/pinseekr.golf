@@ -18,7 +18,6 @@ import { GolfRound } from '@/lib/golf/types';
 import { 
   Trophy, 
   Target, 
-  Users, 
   ArrowLeft, 
   BarChart3,
   Zap,
@@ -79,12 +78,12 @@ export const DemoRoundPage: React.FC = () => {
                   <Info className="h-5 w-5 text-purple-600 flex-shrink-0 mt-0.5" />
                   <div className="text-sm">
                     <p className="font-medium text-purple-900 dark:text-purple-100">
-                      Interactive Demo: 9-Hole Round
+                      Interactive Demo: 9-Hole Round with 4 Players
                     </p>
                     <p className="text-purple-700 dark:text-purple-300">
-                      Holes 1-8 are pre-filled. Navigate to <strong>Hole 9</strong> and enter scores for both players, 
-                      then click <strong>Finish Round</strong> to see the stats summary. 
-                      Active modes: <span className="font-semibold">Stroke Play, Match Play, Snake</span>
+                      Playing with Alister Mackenzie, Bagger Vance, Isaac Newton, and Carl Jung. 
+                      All scores are pre-filled — explore the scorecard and see live results! 
+                      Active modes: <span className="font-semibold">Stroke Play, Nassau, Snake</span>
                     </p>
                   </div>
                 </div>
@@ -98,9 +97,9 @@ export const DemoRoundPage: React.FC = () => {
                 <Target className="h-3 w-3 mr-1" />
                 Stroke Play
               </Badge>
-              <Badge className="bg-red-600 text-white">
-                <Users className="h-3 w-3 mr-1" />
-                Match Play
+              <Badge className="bg-amber-600 text-white">
+                <Trophy className="h-3 w-3 mr-1" />
+                Nassau
               </Badge>
               <Badge className="bg-green-600 text-white">
                 🐍 Snake
@@ -297,20 +296,20 @@ export const DemoRoundPage: React.FC = () => {
                 </DialogHeader>
                 <div className="space-y-4">
                   <p className="text-gray-600 dark:text-gray-400">
-                    Experience Pinseekr's scoring interface with a pre-filled 9-hole round.
+                    Experience Pinseekr's scoring interface with a pre-filled 9-hole round featuring 4 legendary players.
                   </p>
                   <div className="space-y-2 text-sm">
                     <div className="flex items-start gap-2">
                       <span className="text-green-500">✓</span>
-                      <span><strong>Holes 1-8</strong> are already scored for both players</span>
+                      <span><strong>4 Players:</strong> Alister Mackenzie, Bagger Vance, Isaac Newton, Carl Jung</span>
                     </div>
                     <div className="flex items-start gap-2">
                       <span className="text-yellow-500">→</span>
-                      <span>Navigate to <strong>Hole 9</strong> and enter scores</span>
+                      <span><strong>All 9 holes</strong> are pre-filled with realistic scores</span>
                     </div>
                     <div className="flex items-start gap-2">
                       <span className="text-purple-500">★</span>
-                      <span>Click <strong>Finish Round</strong> to see the summary</span>
+                      <span>Explore the scorecard and see live game results</span>
                     </div>
                     <div className="flex items-start gap-2">
                       <span className="text-blue-500">💰</span>
@@ -321,16 +320,26 @@ export const DemoRoundPage: React.FC = () => {
                     <div className="text-xs text-gray-500 mb-2">Active game modes:</div>
                     <div className="flex gap-2">
                       <Badge variant="outline">Stroke Play</Badge>
-                      <Badge variant="outline">Match Play</Badge>
+                      <Badge variant="outline">Nassau</Badge>
                       <Badge variant="outline">🐍 Snake</Badge>
                     </div>
                   </div>
-                  <Button 
-                    onClick={() => setShowIntro(false)} 
-                    className="w-full bg-yellow-500 hover:bg-yellow-600 text-black"
-                  >
-                    Let's Go!
-                  </Button>
+                  <div className="space-y-2">
+                    <Button 
+                      onClick={() => setShowIntro(false)} 
+                      className="w-full bg-yellow-500 hover:bg-yellow-600 text-black"
+                    >
+                      Try for Yourself
+                    </Button>
+                    <Button 
+                      onClick={() => navigate('/simulator')} 
+                      variant="outline"
+                      className="w-full"
+                    >
+                      <Zap className="h-4 w-4 mr-2" />
+                      Simulate Round
+                    </Button>
+                  </div>
                 </div>
               </DialogContent>
             </Dialog>

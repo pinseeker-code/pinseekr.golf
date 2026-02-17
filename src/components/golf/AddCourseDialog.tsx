@@ -123,7 +123,8 @@ export function AddCourseDialog({ open, onOpenChange, onCourseAdded, existingCou
             const teeYards = existingCourse.teeYardages?.[teeName]?.[hole] 
               || existingCourse.yardages?.[hole] // fallback to legacy single yardage
               || 0;
-            sectionTeeYardages[teeName][relativeHole] = teeYards;
+            sectionTeeYardages[teeName] = sectionTeeYardages[teeName] || {};
+            sectionTeeYardages[teeName]![relativeHole] = teeYards;
           }
         }
         
@@ -273,7 +274,7 @@ export function AddCourseDialog({ open, onOpenChange, onCourseAdded, existingCou
   // Update section name
   const updateSectionName = (sectionIndex: number, name: string) => {
     const newSections = [...sections];
-    newSections[sectionIndex] = { ...newSections[sectionIndex], name };
+    newSections[sectionIndex] = { ...newSections[sectionIndex]!, name: name ?? newSections[sectionIndex]?.name ?? '' } as NineHoleSection;
     setValue('sections', newSections);
   };
 
@@ -285,13 +286,13 @@ export function AddCourseDialog({ open, onOpenChange, onCourseAdded, existingCou
     const newPar = Math.max(3, Math.min(5, currentPar + increment));
 
     const newSections = [...sections];
-    newSections[sectionIndex] = {
-      ...newSections[sectionIndex],
+    newSections[sectionIndex] = ({
+      ...(newSections[sectionIndex] as NineHoleSection),
       holes: { 
-        ...newSections[sectionIndex].holes, 
+        ...(newSections[sectionIndex]?.holes || {}), 
         [hole]: newPar
       }
-    };
+    } as NineHoleSection);
     setValue('sections', newSections);
   };  // Cycle hole par smoothly (for drag operations)
   const cycleHolePar = (sectionIndex: number, hole: number, direction: 1 | -1) => {
@@ -310,43 +311,43 @@ export function AddCourseDialog({ open, onOpenChange, onCourseAdded, existingCou
     
     const newPar = parValues[newIndex];
     const newSections = [...sections];
-    newSections[sectionIndex] = {
-      ...newSections[sectionIndex],
-      holes: { 
-        ...newSections[sectionIndex].holes, 
+    newSections[sectionIndex] = ({
+      ...(newSections[sectionIndex] as NineHoleSection),
+      holes: {
+        ...Object.fromEntries(Object.entries(newSections[sectionIndex]?.holes || {}).map(([k, v]) => [k, v ?? 4])),
         [hole]: newPar
       }
-    };
+    } as NineHoleSection);
     setValue('sections', newSections);
   };
 
   // Update hole handicap within a section (1-9 for each section)
   const updateHoleHandicap = (sectionIndex: number, hole: number, newHandicap: number) => {
     const newSections = [...sections];
-    newSections[sectionIndex] = {
-      ...newSections[sectionIndex],
+    newSections[sectionIndex] = ({
+      ...(newSections[sectionIndex] as NineHoleSection),
       handicaps: { 
-        ...(newSections[sectionIndex].handicaps || {}), 
+        ...((newSections[sectionIndex]!.handicaps) || {}), 
         [hole]: newHandicap
       }
-    };
+    } as NineHoleSection);
     setValue('sections', newSections);
   };
 
   // Update hole yardage for a specific tee within a section
   const updateHoleYardage = (sectionIndex: number, teeName: string, hole: number, newYards: number) => {
     const newSections = [...sections];
-    const current = newSections[sectionIndex];
+    const current = newSections[sectionIndex]!;
     const currentTeeYardages = current.teeYardages || {};
     const currentHoleYards = currentTeeYardages[teeName] || {};
     
-    newSections[sectionIndex] = {
-      ...current,
+    newSections[sectionIndex] = ({
+      ...(current as NineHoleSection),
       teeYardages: { 
         ...currentTeeYardages, 
         [teeName]: { ...currentHoleYards, [hole]: newYards }
       }
-    };
+    } as NineHoleSection);
     setValue('sections', newSections);
   };
 
@@ -368,13 +369,13 @@ export function AddCourseDialog({ open, onOpenChange, onCourseAdded, existingCou
 
   // Remove a tee
   const removeTee = (teeIndex: number) => {
-    const teeToRemove = tees[teeIndex];
+    const teeToRemove = tees[teeIndex]!;
     const newTees = tees.filter((_, i) => i !== teeIndex);
     setValue('tees', newTees);
     
     // Remove yardages for this tee from all sections
     const newSections = sections.map(section => {
-      const { [teeToRemove]: _removed, ...remainingTeeYardages } = section.teeYardages || {};
+      const { [teeToRemove]: _removed, ...remainingTeeYardages } = section.teeYardages || {} as Record<string, Record<number, number>>;
       return {
         ...section,
         teeYardages: remainingTeeYardages
@@ -385,7 +386,7 @@ export function AddCourseDialog({ open, onOpenChange, onCourseAdded, existingCou
 
   // Rename a tee
   const renameTee = (teeIndex: number, newName: string) => {
-    const oldName = tees[teeIndex];
+    const oldName = tees[teeIndex]!;
     if (oldName === newName) return;
     
     const newTees = [...tees];
@@ -394,7 +395,7 @@ export function AddCourseDialog({ open, onOpenChange, onCourseAdded, existingCou
     
     // Rename yardages for this tee in all sections
     const newSections = sections.map(section => {
-      const { [oldName]: oldYardages, ...remainingTeeYardages } = section.teeYardages || {};
+      const { [oldName]: oldYardages, ...remainingTeeYardages } = section.teeYardages || {} as Record<string, Record<number, number>>;
       return {
         ...section,
         teeYardages: {
@@ -423,14 +424,15 @@ export function AddCourseDialog({ open, onOpenChange, onCourseAdded, existingCou
     sections.forEach((section, sectionIndex) => {
       sectionNames[sectionIndex] = section.name;
       for (let i = 1; i <= 9; i++) {
-        if (section.holes[i] !== undefined) {
-          holes[holeNumber] = section.holes[i];
-          handicaps[holeNumber] = section.handicaps?.[i] || i;
+        if (section.holes?.[i] !== undefined) {
+          holes[holeNumber] = section.holes[i]!;
+          handicaps[holeNumber] = section.handicaps?.[i] ?? i;
           
           // Copy per-tee yardages
           for (const teeName of teeNames) {
-            const yards = section.teeYardages?.[teeName]?.[i] || 0;
-            teeYardages[teeName][holeNumber] = yards;
+            const yards = section.teeYardages?.[teeName]?.[i] ?? 0;
+            teeYardages[teeName] = teeYardages[teeName] || {};
+            teeYardages[teeName]![holeNumber] = yards;
           }
           
           holeNumber++;
@@ -865,8 +867,8 @@ export function AddCourseDialog({ open, onOpenChange, onCourseAdded, existingCou
                                         if (newPar !== currentPar) {
                                           const newSections = [...sections];
                                           newSections[sectionIndex] = {
-                                            ...newSections[sectionIndex],
-                                            holes: { ...newSections[sectionIndex].holes, [hole]: newPar }
+                                            ...newSections[sectionIndex]!,
+                                            holes: { ...(newSections[sectionIndex]!.holes || {}), [hole]: newPar }
                                           };
                                           setValue('sections', newSections);
                                         }
@@ -888,7 +890,8 @@ export function AddCourseDialog({ open, onOpenChange, onCourseAdded, existingCou
                                     document.addEventListener('mouseup', handleMouseUp);
                                   }}
                                   onTouchStart={(e) => {
-                                    const touch = e.touches[0];
+                                    const touch = e.touches?.[0];
+                                    if (!touch) return;
                                     const element = e.currentTarget as HTMLDivElement & { _startY?: number };
                                     element._startY = touch.clientY;
                                   }}
@@ -896,7 +899,8 @@ export function AddCourseDialog({ open, onOpenChange, onCourseAdded, existingCou
                                     e.preventDefault();
                                   }}
                                   onTouchEnd={(e) => {
-                                    const touch = e.changedTouches[0];
+                                    const touch = e.changedTouches?.[0];
+                                    if (!touch) return;
                                     const element = e.currentTarget as HTMLDivElement & { _startY?: number };
                                     const startY = element._startY;
                                     if (startY !== undefined) {

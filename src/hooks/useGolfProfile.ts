@@ -2,17 +2,19 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNostr } from '@nostrify/react';
 import { nip19 } from 'nostr-tools';
 import { useNostrPublish } from '@/hooks/useNostrPublish';
-import { 
-  GolfProfile, 
-  GolfStats, 
-  Badge, 
-  Achievement, 
+import {
+  GolfProfile,
+  GolfStats,
+  Badge,
+  Achievement,
   GolfProfileEvent,
-  NOSTR_KINDS,
   DEFAULT_ACHIEVEMENTS,
   DEFAULT_BADGES,
   ProfileUpdateData
 } from '@/lib/golf/social';
+import { APP_KIND } from '@/lib/golf/types';
+import { SUBTYPES } from '@/lib/golfTags';
+import { db } from '@/lib/offline/db';
 
 // Helper functions
 const createEmptyStats = (): GolfStats => ({
@@ -69,19 +71,19 @@ const createDefaultProfile = (pubkey: string, name?: string): GolfProfile => ({
 
 const parseGolfProfileFromEvent = (event: GolfProfileEvent): GolfProfile | null => {
   try {
-    const getName = () => event.tags.find(([name]) => name === 'name')?.[1];
-    const getHandicap = () => parseInt(event.tags.find(([name]) => name === 'handicap')?.[1] || '0');
-    const getHomeCourse = () => event.tags.find(([name]) => name === 'home_course')?.[1];
+    const getName = () => event.tags.find(tag => tag[0] === 'name')?.[1];
+    const getHandicap = () => parseInt(event.tags.find(tag => tag[0] === 'handicap')?.[1] ?? '0');
+    const getHomeCourse = () => event.tags.find(tag => tag[0] === 'home_course')?.[1];
     const getStats = () => {
-      const statsTag = event.tags.find(([name]) => name === 'stats')?.[1];
+      const statsTag = event.tags.find(tag => tag[0] === 'stats')?.[1];
       return statsTag ? JSON.parse(statsTag) as GolfStats : createEmptyStats();
     };
     const getBadges = () => {
-      const badgesTag = event.tags.find(([name]) => name === 'badges')?.[1];
+      const badgesTag = event.tags.find(tag => tag[0] === 'badges')?.[1];
       return badgesTag ? JSON.parse(badgesTag) as Badge[] : [];
     };
     const getAchievements = () => {
-      const achievementsTag = event.tags.find(([name]) => name === 'achievements')?.[1];
+      const achievementsTag = event.tags.find(tag => tag[0] === 'achievements')?.[1];
       return achievementsTag ? JSON.parse(achievementsTag) as Achievement[] : [];
     };
 
@@ -120,25 +122,64 @@ const parseGolfProfileFromEvent = (event: GolfProfileEvent): GolfProfile | null 
 // Hook for managing golf profiles
 export function useGolfProfile(pubkey?: string) {
   const { nostr } = useNostr();
-  const _queryClient = useQueryClient();
 
   return useQuery({
     queryKey: ['golf-profile', pubkey],
     queryFn: async ({ signal }) => {
       if (!pubkey) return null;
 
+      const isOnline = navigator.onLine;
+
+      // If offline, try to load from cache
+      if (!isOnline) {
+        const cachedProfile = await db.profiles.get(pubkey);
+        if (cachedProfile) {
+          console.log('[useGolfProfile] Loading from cache (offline)');
+          // Update lastAccessedAt
+          await db.profiles.update(pubkey, { lastAccessedAt: Date.now() });
+          
+          // Parse profile from cached event
+          const profile = parseGolfProfileFromEvent(cachedProfile.event as GolfProfileEvent);
+          return profile;
+        }
+      }
+
+      // Online: fetch from Nostr
       try {
         const events = await nostr.query([
           {
-            kinds: [NOSTR_KINDS.GOLF_PROFILE],
+            kinds: [APP_KIND],
             authors: [pubkey],
+            '#t': ['golf', SUBTYPES.PROFILE],
             '#d': ['golf-profile'],
             limit: 1,
           }
         ], { signal });
 
-        if (events.length > 0) {
-          const profile = parseGolfProfileFromEvent(events[0] as GolfProfileEvent);
+        if (events.length > 0 && events[0]) {
+          const event = events[0] as GolfProfileEvent;
+          const profile = parseGolfProfileFromEvent(event);
+          
+          // Cache profile for offline access
+          if (isOnline && profile) {
+            try {
+              await db.profiles.put({
+                pubkey,
+                name: profile.name,
+                displayName: profile.name,
+                picture: undefined,
+                nip05: undefined,
+                about: undefined,
+                event: event,
+                cachedAt: Date.now(),
+                lastAccessedAt: Date.now(),
+              });
+              console.log(`[useGolfProfile] Cached profile for ${pubkey}`);
+            } catch (cacheError) {
+              console.error('[useGolfProfile] Failed to cache profile:', cacheError);
+            }
+          }
+          
           return profile;
         }
 
@@ -168,7 +209,8 @@ export function useGolfProfileMutation() {
       Object.assign(profile, profileData);
 
       publishEvent({
-        kind: NOSTR_KINDS.GOLF_PROFILE,
+        kind: APP_KIND,
+        created_at: Math.floor(Date.now() / 1000),
         content: '',
         tags: [
           ['d', 'golf-profile'],
@@ -178,7 +220,8 @@ export function useGolfProfileMutation() {
           ['stats', JSON.stringify(profile.stats)],
           ['badges', JSON.stringify(profile.badges)],
           ['achievements', JSON.stringify(profile.achievements)],
-          ['t', 'golf-profile'],
+          ['t', 'golf'],
+          ['t', SUBTYPES.PROFILE],
         ],
       });
 
@@ -203,7 +246,8 @@ export function useGolfProfileMutation() {
       const updatedProfile = { ...currentProfile, ...updates };
 
       publishEvent({
-        kind: NOSTR_KINDS.GOLF_PROFILE,
+        kind: APP_KIND,
+        created_at: Math.floor(Date.now() / 1000),
         content: '',
         tags: [
           ['d', 'golf-profile'],
@@ -213,7 +257,8 @@ export function useGolfProfileMutation() {
           ['stats', JSON.stringify(updatedProfile.stats)],
           ['badges', JSON.stringify(updatedProfile.badges)],
           ['achievements', JSON.stringify(updatedProfile.achievements)],
-          ['t', 'golf-profile'],
+          ['t', 'golf'],
+          ['t', SUBTYPES.PROFILE],
         ],
       });
 

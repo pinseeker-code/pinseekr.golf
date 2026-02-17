@@ -1,0 +1,150 @@
+{
+  "name": "Blinko 2nd Brain - Phase 2",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "blinko-note-capture",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "webhook-capture",
+      "name": "Capture Blinko Note",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [240, 300],
+      "webhookId": "blinko-note-capture"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract note content and metadata\nconst note = $input.item.json;\n\nreturn {\n  original_content: note.content || note.text || note.body,\n  note_id: note.id,\n  timestamp: note.created_at || new Date().toISOString(),\n  tags: note.tags || [],\n  metadata: note\n};"
+      },
+      "id": "extract-note",
+      "name": "Extract Note Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://YOUR_LAPTOP_TAILSCALE_IP:11434/api/generate",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "qwen2.5:3b"
+            },
+            {
+              "name": "prompt",
+              "value": "=Analyze this note and provide:\n1. 3-5 relevant tags (comma-separated)\n2. One-sentence summary\n3. Key entities (people, places, projects)\n4. Suggested connections to topics\n\nNote: {{ $json.original_content }}\n\nFormat your response as JSON:\n{\n  \"tags\": [\"tag1\", \"tag2\"],\n  \"summary\": \"Brief summary\",\n  \"entities\": [\"entity1\", \"entity2\"],\n  \"connections\": [\"topic1\", \"topic2\"]\n}"
+            },
+            {
+              "name": "stream",
+              "value": false
+            },
+            {
+              "name": "format",
+              "value": "json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "ollama-analyze",
+      "name": "Ollama Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse Ollama response and merge with original note\nconst original = $input.first().json;\nconst ollamaResponse = $input.item.json;\n\n// Extract the response text\nlet analysisText = ollamaResponse.response;\n\n// Try to parse as JSON\nlet analysis = {};\ntry {\n  analysis = JSON.parse(analysisText);\n} catch (e) {\n  // If not valid JSON, extract what we can\n  analysis = {\n    tags: [],\n    summary: analysisText.substring(0, 200),\n    entities: [],\n    connections: []\n  };\n}\n\nreturn {\n  original_content: original.original_content,\n  note_id: original.note_id,\n  timestamp: original.timestamp,\n  ai_tags: analysis.tags || [],\n  ai_summary: analysis.summary || '',\n  ai_entities: analysis.entities || [],\n  ai_connections: analysis.connections || [],\n  enriched_at: new Date().toISOString()\n};"
+      },
+      "id": "merge-analysis",
+      "name": "Merge Analysis",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://100.94.28.97:1111/api/v1/note/upsert",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_BLINKO_TOKEN"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"content\": \"🤖 AI Analysis of \\\"{{ $json.original_content.substring(0, 50) }}...\\\"\\n\\n📝 Summary: {{ $json.ai_summary }}\\n\\n🏷️ Suggested Tags: #{{ $json.ai_tags.join(' #') }}\\n\\n👤 Entities: {{ $json.ai_entities.join(', ') }}\\n\\n🔗 Related Topics: {{ $json.ai_connections.join(', ') }}\",\n  \"type\": 1\n}",
+        "options": {}
+      },
+      "id": "save-to-blinko",
+      "name": "Save Enriched Note to Blinko",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1120, 300],
+      "notes": "Creates a new note with AI analysis. Replace YOUR_BLINKO_TOKEN with actual token from Blinko settings."
+    }
+  ],
+  "connections": {
+    "Capture Blinko Note": {
+      "main": [
+        [
+          {
+            "node": "Extract Note Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Note Data": {
+      "main": [
+        [
+          {
+            "node": "Ollama Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Analysis": {
+      "main": [
+        [
+          {
+            "node": "Merge Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Analysis": {
+      "main": [
+        [
+          {
+            "node": "Save Enriched Note to Blinko",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {}
+}

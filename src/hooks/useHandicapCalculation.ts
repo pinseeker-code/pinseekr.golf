@@ -1,6 +1,7 @@
 import { useNostr } from '@nostrify/react';
 import { useQuery } from '@tanstack/react-query';
-import { GOLF_KINDS } from '@/lib/golf/types';
+import { APP_KIND } from '@/lib/golf/types';
+import { SUBTYPES } from '@/lib/golfTags';
 import {
   calculateDifferential,
   calculateHandicapIndex,
@@ -43,15 +44,16 @@ export function useHandicapCalculation(userPubkey: string | undefined) {
 
       // Query user's PLAYER_SCORE events (their scorecards)
       const scoreEvents = await nostr.query([{
-        kinds: [GOLF_KINDS.PLAYER_SCORE],
+        kinds: [APP_KIND],
         authors: [userPubkey],
+        '#t': ['golf', SUBTYPES.PLAYER_SCORE],
         limit: 20,
       }], { signal: AbortSignal.any([signal, AbortSignal.timeout(10000)]) });
 
       // Also query for the courses to get ratings/slopes
       const courseEvents = await nostr.query([{
-        kinds: [GOLF_KINDS.COURSE],
-        '#t': ['golf-course'],
+        kinds: [APP_KIND],
+        '#t': ['golf', 'golf-course'],
         limit: 100,
       }], { signal: AbortSignal.any([signal, AbortSignal.timeout(10000)]) });
 

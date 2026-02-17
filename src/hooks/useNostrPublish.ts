@@ -5,7 +5,7 @@ import { useCurrentUser } from "./useCurrentUser";
 
 import type { NostrEvent } from "@nostrify/nostrify";
 
-export function useNostrPublish(): UseMutationResult<NostrEvent> {
+export function useNostrPublish(): UseMutationResult<NostrEvent, Error, Omit<NostrEvent, 'id' | 'pubkey' | 'sig'>, unknown> {
   const { nostr } = useNostr();
   const { user } = useCurrentUser();
 
@@ -15,7 +15,7 @@ export function useNostrPublish(): UseMutationResult<NostrEvent> {
         const tags = t.tags ?? [];
 
         // Add the client tag if it doesn't exist
-        if (location.protocol === "https:" && !tags.some(([name]) => name === "client")) {
+        if (location.protocol === "https:" && !tags.some(tag => tag[0] === "client")) {
           tags.push(["client", location.hostname]);
         }
 

@@ -72,8 +72,8 @@ describe('Snake Engine', () => {
     expect(result.penalty!.loser).toBe('bob');
     expect(result.penalty!.amount).toBe(1000);
     expect(result.penalty!.recipients).toHaveLength(1);
-    expect(result.penalty!.recipients[0].playerId).toBe('pot');
-    expect(result.penalty!.recipients[0].amount).toBe(1000);
+    expect(result.penalty!.recipients[0]!.playerId).toBe('pot');
+    expect(result.penalty!.recipients[0]!.amount).toBe(1000);
   });
 
   it('should split penalty among other players when not distributing to group', () => {
@@ -88,8 +88,8 @@ describe('Snake Engine', () => {
     expect(result.penalty!.loser).toBe('bob');
     expect(result.penalty!.amount).toBe(1000);
     expect(result.penalty!.recipients).toHaveLength(2); // alice and charlie
-    expect(result.penalty!.recipients[0].amount).toBe(500); // 1000 / 2
-    expect(result.penalty!.recipients[1].amount).toBe(500);
+    expect(result.penalty!.recipients[0]!.amount).toBe(500); // 1000 / 2
+    expect(result.penalty!.recipients[1]!.amount).toBe(500);
   });
 
   it('should handle no three-putts scenario', () => {
@@ -209,7 +209,7 @@ describe('convertToSnakeData', () => {
     expect(result.putts.alice).toHaveProperty('3');
     
     // Putts should be reasonable numbers
-    Object.values(result.putts.alice).forEach(putts => {
+    Object.values(result.putts.alice!).forEach(putts => {
       expect(putts).toBeGreaterThanOrEqual(1);
       expect(putts).toBeLessThanOrEqual(4);
     });
@@ -220,8 +220,8 @@ describe('convertToSnakeData', () => {
     
     // Alice made birdie on hole 1 (3 on par 4) - should likely have 1 putt
     // Alice made double bogey on hole 3 (6 on par 4) - should likely have more putts
-    const alice1Putts = result.putts.alice[1];
-    const alice3Putts = result.putts.alice[3];
+    const alice1Putts = result.putts.alice![1];
+    const alice3Putts = result.putts.alice![3];
     
     expect(typeof alice1Putts).toBe('number');
     expect(typeof alice3Putts).toBe('number');

@@ -1,8 +1,11 @@
 import React from 'react';
 import { useNostr } from '@nostrify/react';
-import { GOLF_KINDS } from '@/lib/golf/types';
+import { APP_KIND } from '@/lib/golf/types';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNostrPublish } from '@/hooks/useNostrPublish';
+import { buildGolfTags } from '@/lib/golfTags';
+import { db } from '@/lib/offline/db';
+import type { NostrEvent } from '@nostrify/nostrify';
 
 export interface GolfCourse {
   id: string;
@@ -31,16 +34,88 @@ export function useGolfCourses() {
   return useQuery({
     queryKey: ['golf-courses'],
     queryFn: async (c) => {
-      const signal = AbortSignal.any([c.signal, AbortSignal.timeout(5000)]);
+      const isOnline = navigator.onLine;
+      
+      // If offline, try to load from cache
+      if (!isOnline) {
+        const cachedCourses = await db.courses.toArray();
+        if (cachedCourses.length > 0) {
+          console.log('[useGolfCourses] Loading from cache (offline)');
+          // Update lastAccessedAt for all cached courses
+          await Promise.all(cachedCourses.map(course => 
+            db.courses.update(course.id, { lastAccessedAt: Date.now() })
+          ));
+          
+          // Convert cached courses to GolfCourse format
+          return cachedCourses.map(cached => {
+            const event = cached.event;
+            
+            // Try JSON content first
+            try {
+              if (event.content && event.content.trim().startsWith('{')) {
+                const parsed = JSON.parse(event.content) as Record<string, unknown>;
+                const holes = parsed.holes as Record<string, number> || {};
+                const totalPar = typeof parsed.totalPar === 'number' ? parsed.totalPar : Object.values(holes).reduce((s, n) => s + (Number(n) || 0), 0);
+                
+                return {
+                  id: cached.id,
+                  name: cached.name,
+                  location: cached.location || '',
+                  holes: holes,
+                  handicaps: parsed.handicaps as Record<string, number> | undefined,
+                  sections: parsed.sections as Record<string, string> | undefined,
+                  tees: parsed.tees as string[] | undefined,
+                  teeYardages: parsed.teeYardages as Record<string, Record<string, number>> | undefined,
+                  yardages: parsed.yardages as Record<string, number> | undefined,
+                  totalPar,
+                  author: event.pubkey,
+                  createdAt: cached.cachedAt,
+                  eventId: event.id,
+                } as GolfCourse;
+              }
+            } catch {
+              // Fall through to tag parsing
+            }
+            
+            // Fallback: parse from tags
+            const holes: { [hole: number]: number } = {};
+            let totalPar = 0;
+            event.tags.forEach((tag: string[]) => {
+              if (tag[0]?.startsWith('hole') && tag[0] !== 'hole') {
+                const holeNumber = parseInt(tag[0].replace('hole', ''));
+                if (!isNaN(holeNumber) && holeNumber > 0) {
+                  const par = parseInt(tag[1] ?? '4');
+                  holes[holeNumber] = par;
+                  totalPar += par;
+                }
+              }
+            });
+            
+            return {
+              id: cached.id,
+              name: cached.name,
+              location: cached.location || '',
+              holes,
+              totalPar,
+              author: event.pubkey,
+              createdAt: cached.cachedAt,
+              eventId: event.id,
+            } as GolfCourse;
+          }).sort((a, b) => a.name.localeCompare(b.name));
+        }
+      }
+
+      // Online: fetch from Nostr
+      const signal = AbortSignal.any([c.signal, AbortSignal.timeout(8000)]); // 8s for large datasets
       const events = await nostr.query([
         {
-          kinds: [GOLF_KINDS.COURSE], // Course event kind
-          '#t': ['golf-course'],
+          kinds: [APP_KIND], // App-level canonical kind (36912)
+          '#t': ['golf', 'golf-course'],
           limit: 500,
         }
       ], { signal });
 
-      const courses: GolfCourse[] = events.map(event => {
+      const courses: GolfCourse[] = events.map((event: NostrEvent) => {
         // Try to parse JSON content first (preferred)
         try {
           if (event.content && event.content.trim().startsWith('{')) {
@@ -110,27 +185,27 @@ export function useGolfCourses() {
         let totalPar = 0;
 
         event.tags.forEach(tag => {
-          if (tag[0].startsWith('hole') && tag[0] !== 'hole') {
+          if (tag[0]?.startsWith('hole') && tag[0] !== 'hole') {
             const holeNumber = parseInt(tag[0].replace('hole', ''));
             if (!isNaN(holeNumber) && holeNumber > 0) {
-              const par = parseInt(tag[1] || '4');
+              const par = parseInt(tag[1] ?? '4');
               holes[holeNumber] = par;
               totalPar += par;
             }
           } else if (tag[0] === 'hc' && tag[1] && tag[2]) {
             // Handicap tag: ['hc', '<holeNumber>', '<handicap>']
-            const holeNum = parseInt(tag[1]);
-            const hc = parseInt(tag[2]);
+            const holeNum = parseInt(tag[1] ?? '0');
+            const hc = parseInt(tag[2] ?? '0');
             if (!isNaN(holeNum) && !isNaN(hc)) handicaps[holeNum] = hc;
-          } else if (tag[0].startsWith('section') && tag[0] !== 'section') {
+          } else if (tag[0]?.startsWith('section') && tag[0] !== 'section') {
             const sectionIndex = parseInt(tag[0].replace('section', ''));
             if (!isNaN(sectionIndex) && sectionIndex >= 0) {
-              sections[sectionIndex] = tag[1] || '';
+              sections[sectionIndex] = tag[1] ?? '';
             }
           } else if (tag[0] === 'tee') {
             // New format: ['tee', '<name>'] (no yardage - yardages are per-hole)
             // Old format: ['tee', '<name>', '<totalYardage>']
-            const name = tag[1] || '';
+            const name = tag[1] ?? '';
             if (name && !teeNames.includes(name)) {
               teeNames.push(name);
               teeYardages[name] = {};
@@ -140,17 +215,17 @@ export function useGolfCourses() {
             // Old format: ['yard', '<holeNumber>', '<yards>']
             if (tag.length === 4) {
               // New format with tee name
-              const teeName = tag[1];
-              const holeNum = parseInt(tag[2]);
-              const yards = parseInt(tag[3]) || 0;
+              const teeName = tag[1] ?? '';
+              const holeNum = parseInt(tag[2] ?? '0');
+              const yards = parseInt(tag[3] ?? '0');
               if (teeName && !isNaN(holeNum) && holeNum > 0) {
                 if (!teeYardages[teeName]) teeYardages[teeName] = {};
                 teeYardages[teeName][holeNum] = yards;
               }
             } else if (tag.length === 3) {
               // Old format without tee name
-              const holeNum = parseInt(tag[1]);
-              const yards = parseInt(tag[2]) || 0;
+              const holeNum = parseInt(tag[1] ?? '0');
+              const yards = parseInt(tag[2] ?? '0');
               if (!isNaN(holeNum) && holeNum > 0) yardages[holeNum] = yards;
             }
           }
@@ -184,7 +259,48 @@ export function useGolfCourses() {
       }
       const dedupedCourses = Array.from(coursesByName.values());
 
-      return dedupedCourses.sort((a, b) => a.name.localeCompare(b.name));
+      // Filter out invalid/incomplete courses
+      const validCourses = dedupedCourses.filter(course => {
+        const holeCount = Object.keys(course.holes || {}).length;
+        // Require at least 1 hole and some par value to be considered valid
+        if (holeCount === 0) return false;
+        if (course.totalPar === 0) return false;
+        // Exclude generic placeholder names
+        if (course.name === 'Unknown Course') return false;
+        return true;
+      });
+
+      // Cache courses to Dexie for offline access
+      if (isOnline) {
+        try {
+          await Promise.all(validCourses.map(async (course) => {
+            const event = events.find((e: NostrEvent) => {
+              const dTag = e.tags.find((t: string[]) => t[0] === 'd')?.[1];
+              return dTag === course.id || e.id === course.id;
+            });
+            
+            if (event) {
+              await db.courses.put({
+                id: course.id,
+                name: course.name,
+                location: course.location || '',
+                holes: Object.keys(course.holes || {}).length,
+                par: course.totalPar,
+                rating: undefined,
+                teeBoxes: course.tees,
+                event: event,
+                cachedAt: Date.now(),
+                lastAccessedAt: Date.now(),
+              });
+            }
+          }));
+          console.log(`[useGolfCourses] Cached ${validCourses.length} courses`);
+        } catch (cacheError) {
+          console.error('[useGolfCourses] Failed to cache courses:', cacheError);
+        }
+      }
+
+      return validCourses.sort((a, b) => a.name.localeCompare(b.name));
     },
     staleTime: 10 * 60 * 1000, // 10 minutes
     gcTime: 60 * 60 * 1000, // 1 hour
@@ -203,12 +319,10 @@ export function useAddGolfCourse() {
       // Use existing ID if editing, otherwise generate a new one
       const courseId = course.existingId || `${course.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${Date.now()}`;
       
-      const tags: string[][] = [
-        ['d', courseId],
-        ['name', course.name],
-        ['location', course.location],
-        ['t', 'golf-course'],
-      ];
+      const tags: string[][] = buildGolfTags('golf-course', courseId, {
+        name: course.name,
+        location: course.location,
+      });
 
       // Add hole pars as tags - support variable number of holes
       const holeNumbers = Object.keys(course.holes).map(Number).sort((a, b) => a - b);
@@ -289,7 +403,8 @@ export function useAddGolfCourse() {
       };
 
       const event = {
-        kind: GOLF_KINDS.COURSE,
+        kind: APP_KIND,
+        created_at: Math.floor(Date.now() / 1000),
         content: JSON.stringify(payload),
         tags,
       };

@@ -3,7 +3,7 @@ import { Shield, Upload, AlertTriangle, KeyRound, QrCode, Copy, Loader, Sparkles
 import QRCode from 'qrcode';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useLoginActions } from '@/hooks/useLoginActions';
 import { useNostr } from '@nostrify/react';
@@ -93,7 +93,7 @@ export const EnhancedLoginDialog: React.FC<EnhancedLoginDialogProps> = ({
     if (showQrCode && !connectionString) {
       const initializeConnection = async () => {
         try {
-          const { generateSecretKey, getPublicKey, nip19 } = await import('nostr-tools');
+          const { generateSecretKey, getPublicKey } = await import('nostr-tools');
           const nostrifyModule = await import('@nostrify/nostrify');
           const { NSecSigner, NConnectSigner, NSchema } = nostrifyModule;
           
@@ -115,7 +115,9 @@ export const EnhancedLoginDialog: React.FC<EnhancedLoginDialogProps> = ({
           params.append('secret', secret);
           params.append('name', 'pinseekr.golf');
           params.append('url', 'https://pinseekr.golf');
-          params.append('perms', 'sign_event,nip44_encrypt,nip44_decrypt,get_public_key');
+          // Request a broader set of permissions so Pinseekr can read relays,
+          // connect, encrypt/decrypt with NIP-44/NIP-04, and sign events.
+          params.append('perms', 'sign_event,nip44_encrypt,nip44_decrypt,nip04_encrypt,nip04_decrypt,get_public_key,get_relays,connect');
           
           const realConnectionString = `nostrconnect://${pubkey}?${params.toString()}`;
           setConnectionString(realConnectionString);
@@ -172,11 +174,7 @@ export const EnhancedLoginDialog: React.FC<EnhancedLoginDialogProps> = ({
                   console.log('[NIP-46] Connection confirmed! Remote signer pubkey:', event.pubkey);
                   clearTimeout(timeout);
                   
-                  // Create bunker URI
-                  const clientNsec = nip19.nsecEncode(secretKey);
-                  const bunkerUriResult = `bunker://${event.pubkey}?relay=wss%3A%2F%2Frelay.nsec.app&secret=${encodeURIComponent(clientNsec)}`;
-                  
-                  // Get user pubkey via established connection
+                  // Create signer from established connection
                   const signer = new NConnectSigner({
                     relay: nostr,
                     pubkey: event.pubkey,
@@ -184,11 +182,12 @@ export const EnhancedLoginDialog: React.FC<EnhancedLoginDialogProps> = ({
                     timeout: 30000
                   });
                   
+                  // Get user pubkey via established connection
                   const userPubkey = await signer.getPublicKey();
                   console.log('[NIP-46] User pubkey:', userPubkey);
                   
-                  // Login
-                  await login.bunker(bunkerUriResult);
+                  // Login using the already-established signer (don't call bunker() again!)
+                  login.fromSigner(userPubkey, signer);
                   
                   setIsWaitingForAuth(false);
                   setIsLoading(false);
@@ -298,15 +297,38 @@ export const EnhancedLoginDialog: React.FC<EnhancedLoginDialogProps> = ({
     setErrors(prev => ({ ...prev, bunker: undefined }));
 
     try {
+      // Basic sanity-check: ensure the bunker URI includes a secret param
+      try {
+        const parsed = new URL(bunkerUri);
+        const secret = parsed.searchParams.get('secret') ?? parsed.searchParams.get('s');
+        if (!secret || !/^[0-9a-f]{16}$/i.test(secret)) {
+          setErrors(prev => ({ ...prev, bunker: 'Bunker URL is missing a valid secret parameter. Please paste the full bunker:// URL provided by your signer.' }));
+          setIsLoading(false);
+          return;
+        }
+      } catch {
+        setErrors(prev => ({ ...prev, bunker: 'Malformed bunker URL. Please ensure it starts with bunker:// and includes query parameters.' }));
+        setIsLoading(false);
+        return;
+      }
+
+      console.log('[NIP-46] Attempting bunker login with URI:', bunkerUri);
       await login.bunker(bunkerUri);
+      console.log('[NIP-46] Bunker login successful');
       onLogin();
       onClose();
       setBunkerUri('');
-    } catch {
-      setErrors(prev => ({
-        ...prev,
-        bunker: 'Failed to connect. Please check the URL.'
-      }));
+    } catch (error) {
+      console.error('[NIP-46] Bunker login failed:', error);
+      const msg = error instanceof Error ? error.message : String(error);
+      if (msg.includes('invalid secret')) {
+        setErrors(prev => ({ ...prev, bunker: 'Bunker login failed: invalid secret. Ensure you copied the full bunker:// URL including the secret query parameter.' }));
+      } else {
+        setErrors(prev => ({
+          ...prev,
+          bunker: msg || 'Failed to connect. Please check the URL.'
+        }));
+      }
     } finally {
       setIsLoading(false);
     }
@@ -359,9 +381,9 @@ export const EnhancedLoginDialog: React.FC<EnhancedLoginDialogProps> = ({
           {/* Header */}
           <DialogHeader className="text-center space-y-1">
             <DialogTitle className="text-xl font-semibold">Log in to Pinseekr</DialogTitle>
-            <p className="text-sm text-muted-foreground">
+            <DialogDescription className="text-sm text-muted-foreground">
               Choose a login method to access your Nostr identity
-            </p>
+            </DialogDescription>
           </DialogHeader>
 
           {/* Generate Identity Button */}
@@ -459,9 +481,19 @@ export const EnhancedLoginDialog: React.FC<EnhancedLoginDialogProps> = ({
                   Log in by pasting your private key (nsec or hex format). Only use this on trusted devices.
                 </p>
                 
-                <div className="space-y-2">
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleKeyLogin();
+                  }}
+                  className="space-y-2"
+                >
+                  {/* Hidden username field for accessibility (password forms should include username) */}
+                  <input name="username" autoComplete="username" type="text" className="sr-only" aria-hidden="true" />
                   <label className="text-sm font-medium">Private Key</label>
                   <Input
+                    name="privateKey"
+                    autoComplete="current-password"
                     type="password"
                     value={nsec}
                     onChange={(e) => {
@@ -483,27 +515,28 @@ export const EnhancedLoginDialog: React.FC<EnhancedLoginDialogProps> = ({
                   {errors.file && (
                     <p className="text-sm text-red-500">{errors.file}</p>
                   )}
-                </div>
-                
-                <div className="flex gap-2">
-                  <Button
-                    onClick={handleKeyLogin}
-                    disabled={isLoading || !nsec.trim()}
-                    className="flex-1 h-11"
-                  >
-                    <KeyRound className="w-4 h-4 mr-2" />
-                    {isLoading ? 'Logging in...' : 'Log in with Private Key'}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={isLoading || isFileLoading}
-                    className="h-11 px-3"
-                    title="Upload key file"
-                  >
-                    <Upload className="w-4 h-4" />
-                  </Button>
-                </div>
+
+                  <div className="flex gap-2">
+                    <Button
+                      type="submit"
+                      disabled={isLoading || !nsec.trim()}
+                      className="flex-1 h-11"
+                    >
+                      <KeyRound className="w-4 h-4 mr-2" />
+                      {isLoading ? 'Logging in...' : 'Log in with Private Key'}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isLoading || isFileLoading}
+                      className="h-11 px-3"
+                      title="Upload key file"
+                    >
+                      <Upload className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </form>
               </>
             )}
 

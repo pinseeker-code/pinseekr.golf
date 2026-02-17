@@ -7,6 +7,14 @@
  * @see https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal/any_static
  */
 
+// Extend global types so we can polyfill safely without `any`
+declare global {
+  interface AbortSignalConstructor {
+    any?: (signals: AbortSignal[]) => AbortSignal;
+    timeout?: (ms: number) => AbortSignal;
+  }
+}
+
 // Check if AbortSignal.any is already available
 if (!AbortSignal.any) {
   AbortSignal.any = function(signals: AbortSignal[]): AbortSignal {
@@ -17,7 +25,7 @@ if (!AbortSignal.any) {
 
     // If only one signal, return it directly for efficiency
     if (signals.length === 1) {
-      return signals[0];
+      return signals[0]! as AbortSignal;
     }
 
     // Check if any signal is already aborted
@@ -35,8 +43,8 @@ if (!AbortSignal.any) {
 
     // Function to abort the combined signal
     const onAbort = (event: Event) => {
-      const target = event.target as AbortSignal;
-      controller.abort(target.reason);
+      const target = event.target as AbortSignal | null;
+      if (target) controller.abort(target.reason);
     };
 
     // Listen for abort events on all input signals
@@ -54,6 +62,7 @@ if (!AbortSignal.any) {
     return controller.signal;
   };
 }
+
 
 /**
  * Polyfill for AbortSignal.timeout()
@@ -74,5 +83,32 @@ if (!AbortSignal.timeout) {
     }, milliseconds);
     
     return controller.signal;
+  };
+}
+
+
+/**
+ * Polyfill for crypto.randomUUID()
+ * 
+ * crypto.randomUUID() generates a random UUID v4 string.
+ * Required by Nostrify's NConnectSigner for NIP-46 connections.
+ * 
+ * @see https://developer.mozilla.org/en-US/docs/Web/API/Crypto/randomUUID
+ */
+
+// Check if crypto.randomUUID is already available
+if (typeof crypto !== 'undefined' && !crypto.randomUUID) {
+  crypto.randomUUID = function(): `${string}-${string}-${string}-${string}-${string}` {
+    // Generate 16 random bytes
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    
+    // Set version (4) and variant (RFC4122)
+    bytes[6] = ((bytes[6] ?? 0) & 0x0f) | 0x40; // Version 4
+    bytes[8] = ((bytes[8] ?? 0) & 0x3f) | 0x80; // Variant RFC4122
+    
+    // Convert to hex string with dashes
+    const hex = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}` as `${string}-${string}-${string}-${string}-${string}`;
   };
 }

@@ -127,7 +127,7 @@ export function useNWCInternal() {
     setConnections(filtered);
 
     if (activeConnection === connectionString) {
-      const newActive = filtered.length > 0 ? filtered[0].connectionString : null;
+      const newActive = filtered.length > 0 ? filtered[0]?.connectionString ?? null : null;
       setActiveConnection(newActive);
     }
 
@@ -146,14 +146,17 @@ export function useNWCInternal() {
   // Get active connection
   const getActiveConnection = useCallback((): NWCConnection | null => {
     if (!activeConnection && connections.length > 0) {
-      setActiveConnection(connections[0].connectionString);
-      return connections[0];
+      const first = connections[0];
+      if (first) {
+        setActiveConnection(first.connectionString);
+        return first;
+      }
     }
 
     if (!activeConnection) return null;
 
     const found = connections.find(c => c.connectionString === activeConnection);
-    return found || null;
+    return found ?? null;
   }, [activeConnection, connections, setActiveConnection]);
 
   // Send payment using the SDK

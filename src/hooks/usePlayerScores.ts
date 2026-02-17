@@ -2,7 +2,8 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { useNostr } from '@nostrify/react';
 import { useCurrentUser } from './useCurrentUser';
 import { useNostrPublish } from './useNostrPublish';
-import { GOLF_KINDS } from '@/lib/golf/types';
+import { APP_KIND } from '@/lib/golf/types';
+import { SUBTYPES } from '@/lib/golfTags';
 import type { NostrEvent, NostrFilter } from '@nostrify/nostrify';
 
 type PlayerScorePayload = {
@@ -14,7 +15,7 @@ type PlayerScorePayload = {
 
 /**
  * Hook to read and publish per-player scores for a round.
- * - Subscribes (query) to `GOLF_KINDS.PLAYER_SCORE` events for the given `roundId`.
+ * - Subscribes (query) to player-score events (published under `APP_KIND` with subtype `player-score`) for the given `roundId`.
  * - Provides `publishScore` which requires the current user to be the player author.
  */
 export function usePlayerScores(roundId: string, playerPubkey?: string) {
@@ -30,8 +31,9 @@ export function usePlayerScores(roundId: string, playerPubkey?: string) {
       const signal = AbortSignal.any([ctx.signal, AbortSignal.timeout(5000)]);
 
       const filter = {
-        kinds: [GOLF_KINDS.PLAYER_SCORE],
+        kinds: [APP_KIND],
         '#d': [roundId],
+        '#t': ['golf', SUBTYPES.PLAYER_SCORE],
         limit: 200,
       } as unknown as NostrFilter;
 
@@ -77,9 +79,9 @@ export function usePlayerScores(roundId: string, playerPubkey?: string) {
       const content = JSON.stringify({ ...payload.data, updatedAt: Date.now() });
 
       const eventPayload: Omit<NostrEvent, 'id' | 'pubkey' | 'sig'> = {
-        kind: GOLF_KINDS.PLAYER_SCORE,
+        kind: APP_KIND,
         content,
-        tags: [['d', roundId], ['player', payload.playerPubkey]],
+        tags: [['d', roundId], ['player', payload.playerPubkey], ['t', 'golf'], ['t', SUBTYPES.PLAYER_SCORE]],
         created_at: Math.floor(Date.now() / 1000),
       };
 

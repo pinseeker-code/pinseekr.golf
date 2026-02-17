@@ -58,27 +58,27 @@ describe('Stroke Play Engine', () => {
       expect(result.name).toBe('Stroke Play');
       expect(result.ledger).toEqual([]);
       
-      expect(result.breakdown.totals.alice.gross).toBe(74);
-      expect(result.breakdown.totals.bob.gross).toBe(93);
-      expect(result.breakdown.totals.charlie.gross).toBe(58);
+      expect(result.breakdown.totals.alice!.gross).toBe(74);
+      expect(result.breakdown.totals.bob!.gross).toBe(93);
+      expect(result.breakdown.totals.charlie!.gross).toBe(58);
 
-      expect(result.breakdown.leaderboard[0].playerId).toBe('charlie');
-      expect(result.breakdown.leaderboard[0].position).toBe(1);
-      expect(result.breakdown.leaderboard[1].playerId).toBe('alice');
-      expect(result.breakdown.leaderboard[2].playerId).toBe('bob');
+      expect(result.breakdown.leaderboard[0]!.playerId).toBe('charlie');
+      expect(result.breakdown.leaderboard[0]!.position).toBe(1);
+      expect(result.breakdown.leaderboard[1]!.playerId).toBe('alice');
+      expect(result.breakdown.leaderboard[2]!.playerId).toBe('bob');
     });
 
     it('should calculate net scores correctly', () => {
       const config: StrokeConfig = { useNet: true };
       const result = strokeEngine(sampleRoundData, config);
 
-      expect(result.breakdown.totals.alice.net).toBe(70);
-      expect(result.breakdown.totals.bob.net).toBe(83);
-      expect(result.breakdown.totals.charlie.net).toBe(58);
+      expect(result.breakdown.totals.alice!.net).toBe(70);
+      expect(result.breakdown.totals.bob!.net).toBe(83);
+      expect(result.breakdown.totals.charlie!.net).toBe(58);
 
-      expect(result.breakdown.leaderboard[0].playerId).toBe('charlie');
-      expect(result.breakdown.leaderboard[0].score).toBe(58);
-      expect(result.breakdown.leaderboard[0].scoreType).toBe('net');
+      expect(result.breakdown.leaderboard[0]!.playerId).toBe('charlie');
+      expect(result.breakdown.leaderboard[0]!.score).toBe(58);
+      expect(result.breakdown.leaderboard[0]!.scoreType).toBe('net');
     });
   });
 
@@ -132,8 +132,8 @@ describe('Stroke Play Engine', () => {
       const converted = convertToRoundData(players);
 
       expect(converted.players).toEqual(['alice', 'bob']);
-      expect(converted.strokes.alice[1]).toBe(4);
-      expect(converted.strokes.alice[18]).toBe(4);
+      expect(converted.strokes.alice![1]).toBe(4);
+      expect(converted.strokes.alice![18]).toBe(4);
       expect(converted.handicap?.pops.alice).toBeDefined();
     });
   });

@@ -54,10 +54,11 @@ describe('Match Play Engine', () => {
 
       expect(result.name).toBe('Match Play');
       expect(result.format).toBe('head-to-head');
-      expect(result.holeByHole).toHaveLength(18);
+      // All 18 holes are played even if match is decided early
+      expect(result.holeByHole.length).toBe(18);
       
       // Check some specific hole results
-      const hole1 = result.holeByHole[0];
+      const hole1 = result.holeByHole[0]!;
       expect(hole1.hole).toBe(1);
       expect(hole1.scores.alice).toBe(4);
       expect(hole1.scores.bob).toBe(5);
@@ -70,7 +71,7 @@ describe('Match Play Engine', () => {
       const result = matchEngine(sampleMatchData, config);
 
       // Check hole 1 with handicap strokes
-      const hole1 = result.holeByHole[0];
+      const hole1 = result.holeByHole[0]!;
       expect(hole1.netScores.alice).toBe(4); // 4 - 0 pops
       expect(hole1.netScores.bob).toBe(4); // 5 - 1 pop
       expect(hole1.winner).toBe(null); // Tie after handicap adjustment
@@ -80,9 +81,10 @@ describe('Match Play Engine', () => {
       const config: MatchConfig = { useNet: false };
       const result = matchEngine(sampleMatchData, config);
 
-      const aliceTotals = result.totals.alice;
-      const bobTotals = result.totals.bob;
+  const aliceTotals = result.totals.alice!;
+      const bobTotals = result.totals.bob!;
 
+      // All 18 holes are played
       expect(aliceTotals.holesWon + aliceTotals.holesLost + aliceTotals.holesTied).toBe(18);
       expect(bobTotals.holesWon + bobTotals.holesLost + bobTotals.holesTied).toBe(18);
       
@@ -114,8 +116,8 @@ describe('Match Play Engine', () => {
 
       expect(result.finalStatus.winner).toBe(null);
       expect(result.matchSummary).toBe('Match tied');
-      expect(result.totals.alice.holesTied).toBe(18);
-      expect(result.totals.bob.holesTied).toBe(18);
+      expect(result.totals.alice!.holesTied).toBe(18);
+      expect(result.totals.bob!.holesTied).toBe(18);
     });
   });
 
@@ -145,9 +147,40 @@ describe('Match Play Engine', () => {
       const config: MatchConfig = { useNet: false };
       const result = matchEngine(dominantMatchData, config);
       
-      // Alice should win decisively
+      // Alice wins decisively - match decided at hole 10 (10 & 8)
       expect(result.finalStatus.winner).toBe('alice');
-      expect(result.finalStatus.margin).toBeGreaterThan(10);
+      expect(result.finalStatus.margin).toBeGreaterThanOrEqual(10);
+      expect(result.holeByHole.length).toBe(18); // All holes played
+      expect(result.matchSummary).toContain('&'); // Should show dormie format
+    });
+
+    it('should end match early when one player is dormie', () => {
+      // Create a scenario where alice wins first 10 holes, then loses remaining 8
+      // After hole 10, alice is 10 up with 8 to play = match decided, but continues
+      const earlyEndMatchData: CoreRoundData = {
+        ...sampleMatchData,
+        strokes: {
+          // Alice wins holes 1-10, loses holes 11-18
+          'alice': {
+            1: 3, 2: 3, 3: 2, 4: 4, 5: 3, 6: 2, 7: 3, 8: 4, 9: 3, 10: 3,
+            11: 6, 12: 5, 13: 7, 14: 6, 15: 5, 16: 6, 17: 7, 18: 6
+          },
+          'bob': {
+            1: 5, 2: 5, 3: 4, 4: 6, 5: 5, 6: 4, 7: 5, 8: 6, 9: 5, 10: 5,
+            11: 3, 12: 2, 13: 4, 14: 3, 15: 2, 16: 3, 17: 4, 18: 3
+          }
+        }
+      };
+
+      const config: MatchConfig = { useNet: false };
+      const result = matchEngine(earlyEndMatchData, config);
+      
+      // All 18 holes are played (players continue despite match being decided)
+      expect(result.holeByHole.length).toBe(18);
+      expect(result.finalStatus.winner).toBe('alice');
+      expect(result.finalStatus.holesRemaining).toBe(0); // All holes completed
+      // Summary shows when match was mathematically decided
+      expect(result.matchSummary).toBe('alice wins 10 & 8');
     });
   });
 
@@ -197,9 +230,9 @@ describe('Match Play Engine', () => {
       const converted = convertToMatchData(players);
 
       expect(converted.players).toEqual(['alice', 'bob']);
-      expect(converted.strokes.alice[1]).toBe(4);
-      expect(converted.strokes.alice[18]).toBe(4);
-      expect(converted.strokes.bob[1]).toBe(5);
+      expect(converted.strokes.alice![1]).toBe(4);
+      expect(converted.strokes.alice![18]).toBe(4);
+      expect(converted.strokes.bob![1]).toBe(5);
     });
 
     it('should reject invalid player counts', () => {

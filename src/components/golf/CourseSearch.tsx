@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { Search, MapPin, Star, Calendar, Tag, Plus, User } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -10,6 +10,8 @@ import { useGolfCourses } from '@/hooks/useGolfCourses';
 import { useAuthor } from '@/hooks/useAuthor';
 import { type GolfCourse } from '@/hooks/useGolfCourses';
 import { genUserName } from '@/lib/genUserName';
+import { VirtualizedList } from '@/lib/applesauce.tsx';
+import { useDebouncedValue } from '@/lib/useDebouncedValue';
 
 interface CourseSearchProps {
   onSelectCourse: (course: GolfCourse) => void;
@@ -22,12 +24,15 @@ export function CourseSearch({ onSelectCourse, selectedCourse, className, onCrea
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState<'my-courses' | 'search'>('my-courses');
 
+  // Debounce search input to reduce relay/query load and cancelled stale queries
+  const debouncedSearchTerm = useDebouncedValue(searchTerm, 300);
+
   // Get user's own courses
   const { data: myCourses, isLoading: loadingMyCourses } = useGolfCourses();
 
   // Search public courses
   const { data: publicCourses, isLoading: loadingPublic } = usePublicCourses(
-    activeTab === 'search' ? searchTerm : undefined
+    activeTab === 'search' ? debouncedSearchTerm : undefined
   );
 
   // Filter and combine courses based on active tab
@@ -163,15 +168,34 @@ function CourseList({ courses, loading, onSelectCourse, selectedCourse, emptyMes
 
   return (
     <div className="space-y-3">
-      {courses.map((course) => (
-        <CourseCard
-          key={course.id}
-          course={course}
-          isSelected={selectedCourse?.id === course.id}
-          onSelect={() => onSelectCourse(course)}
-          showAuthor={showAuthor}
-        />
-      ))}
+      {courses.length > 25 ? (
+        <VirtualizedList
+          height={420}
+          itemCount={courses.length}
+          itemSize={114}
+        >
+          {({ index, style }) => (
+            <div style={style} key={courses[index]!.id} className="px-0">
+              <CourseCard
+                course={courses[index]!}
+                isSelected={selectedCourse?.id === courses[index]!.id}
+                onSelect={() => onSelectCourse(courses[index]!)}
+                showAuthor={showAuthor}
+              />
+            </div>
+          )}
+        </VirtualizedList>
+      ) : (
+        courses.map((course) => (
+          <CourseCard
+            key={course.id}
+            course={course}
+            isSelected={selectedCourse?.id === course.id}
+            onSelect={() => onSelectCourse(course)}
+            showAuthor={showAuthor}
+          />
+        ))
+      )}
     </div>
   );
 }

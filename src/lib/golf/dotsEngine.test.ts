@@ -56,7 +56,7 @@ describe('dotsEngine', () => {
     const dotsData = convertToDotsData(emptyData);
     const result = dotsEngine(dotsData);
 
-    expect(result.totals.alice.totalDots).toBe(0);
+    expect(result.totals.alice!.totalDots).toBe(0);
   });
 
   it('should calculate birdie dots correctly for par achievement', () => {
@@ -77,7 +77,7 @@ describe('dotsEngine', () => {
     const result = dotsEngine(dotsData, config);
 
     // Should get birdie dots (estimating other achievements)
-    expect(result.totals.alice.birdieDots).toBeGreaterThan(0);
+    expect(result.totals.alice!.birdieDots).toBeGreaterThan(0);
   });
 
   it('should apply double bogey penalty correctly', () => {
@@ -98,7 +98,7 @@ describe('dotsEngine', () => {
     const result = dotsEngine(dotsData, config);
 
     // Should have penalty applied
-    expect(result.totals.alice.penaltyDots).toBeLessThanOrEqual(0);
+    expect(result.totals.alice!.penaltyDots).toBeLessThanOrEqual(0);
   });
 
   it('should rank players correctly on leaderboard', () => {
@@ -106,9 +106,9 @@ describe('dotsEngine', () => {
     const result = dotsEngine(dotsData);
 
     // Leaderboard should be sorted by total dots (descending)
-    expect(result.leaderboard[0].position).toBe(1);
+    expect(result.leaderboard[0]!.position).toBe(1);
     if (result.leaderboard.length > 1) {
-      expect(result.leaderboard[0].dots).toBeGreaterThanOrEqual(result.leaderboard[1].dots);
+      expect(result.leaderboard[0]!.dots).toBeGreaterThanOrEqual(result.leaderboard[1]!.dots);
     }
   });
 
@@ -162,7 +162,7 @@ describe('convertToDotsData', () => {
     expect(result.holeData).toHaveProperty('alice');
     expect(result.holeData.alice).toHaveProperty('1');
     
-    const holeData = result.holeData.alice[1];
+    const holeData = result.holeData.alice![1]!;
     expect(holeData.strokes).toBe(4);
     expect(holeData.par).toBe(4);
     expect(typeof holeData.putts).toBe('number');
@@ -185,6 +185,6 @@ describe('convertToDotsData', () => {
 
     const result = convertToDotsData(dataWithoutCourse);
     
-    expect(result.holeData.alice[1].par).toBe(4); // should use course par
+    expect(result.holeData.alice![1]!.par).toBe(4); // should use course par
   });
 });

@@ -77,7 +77,7 @@ export function snakeEngine(data: SnakeRoundData, config: SnakeConfig = {}): Sna
   for (const hole of sortedHoles) {
     const playerPutts: { [playerId: string]: number } = {};
     const threePutters: string[] = [];
-    let holeSnakeHolder = currentSnakeHolder; // Start with current holder
+    let holeSnakeHolder: string | null = currentSnakeHolder; // Start with current holder
 
     // Check each player's putts for this hole
     players.forEach(playerId => {
@@ -87,7 +87,7 @@ export function snakeEngine(data: SnakeRoundData, config: SnakeConfig = {}): Sna
       // Check for three-putt (or more) - snake passes to ANY player who 3-putts
       if (holePutts >= defaults.threePuttThreshold) {
         threePutters.push(playerId);
-        threePuttSummary[playerId]++;
+        threePuttSummary[playerId] = (threePuttSummary[playerId] ?? 0) + 1;
         
         // Snake passes to this player - if multiple players 3-putt on same hole,
         // the last one in player order gets the snake

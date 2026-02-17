@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useNostr } from '@nostrify/react';
-import { GOLF_KINDS } from '@/lib/golf/types';
+import { APP_KIND } from '@/lib/golf/types';
 import type { NostrEvent } from '@nostrify/nostrify';
 import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -37,7 +37,7 @@ export default function JoinRoundPage() {
         const codeToQuery = joinCode.toUpperCase();
         
         // Query using #d tag with join-CODE format (d tags are always indexed)
-        const filter = { kinds: [GOLF_KINDS.ROUND], '#d': [`join-${codeToQuery}`], limit: 1 };
+        const filter = { kinds: [APP_KIND], '#d': [`join-${codeToQuery}`], '#t': ['golf', 'golf-round'], limit: 1 };
         
         const events = await nostr.query([filter], { signal: controller.signal }) as NostrEvent[];
 
@@ -54,7 +54,7 @@ export default function JoinRoundPage() {
 
         // Get the actual round ID from the round-id tag
         const roundEvent = events[0];
-        const roundIdTag = (roundEvent.tags as string[][]).find((t: string[]) => t[0] === 'round-id');
+        const roundIdTag = roundEvent?.tags ? (roundEvent.tags as string[][]).find((t: string[]) => t[0] === 'round-id') : undefined;
         const actualRoundId = roundIdTag?.[1];
 
         if (!actualRoundId) {

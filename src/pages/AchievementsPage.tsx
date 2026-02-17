@@ -1,19 +1,27 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { BadgeService } from '@/lib/golf/badgeSystem';
-import { BadgeDefinition, BadgeAward } from '@/lib/golf/types';
+import { BadgeDefinition } from '@/lib/golf/types';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { useUserBadges, useBadgeStats } from '@/hooks/useUserBadges';
 import MobileContainer from '@/components/MobileContainer';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge as BadgeUI } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Trophy, Star, Award, Target } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Trophy, Star, Award, Target, LogIn } from 'lucide-react';
 import { Layout } from '@/components/Layout';
 
 export const AchievementsPage: React.FC = () => {
+  const { user } = useCurrentUser();
   const [badgeService] = useState(() => new BadgeService());
   const [allBadges] = useState<BadgeDefinition[]>(badgeService.getBadgeDefinitions());
-  const [earnedBadges, setEarnedBadges] = useState<BadgeAward[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+
+  // Fetch user's earned badges from Nostr
+  const { data: earnedBadges, isLoading: badgesLoading, error: badgesError } = useUserBadges(user?.pubkey);
+  const badgeStats = useBadgeStats(user?.pubkey);
 
   const categories = [
     { id: 'all', name: 'All', icon: <Trophy className="h-4 w-4" /> },
@@ -41,46 +49,76 @@ export const AchievementsPage: React.FC = () => {
     legendary: <Star className="h-4 w-4 text-yellow-400" />
   };
 
-  // Mock earned badges - in a real app, this would come from Nostr events
-  useEffect(() => {
-    // Simulate loading earned badges
-    const mockEarnedBadges: BadgeAward[] = [
-      {
-        id: 'earned-1',
-        badgeId: 'first-round',
-        playerId: 'current-user',
-        issuedAt: Date.now() - 86400000, // 1 day ago
-        metadata: {
-          badgeName: 'First Round',
-          description: 'Complete your first golf round',
-          icon: '🎉',
-          rarity: 'common'
-        }
-      },
-      {
-        id: 'earned-2',
-        badgeId: 'hole-in-one',
-        playerId: 'current-user',
-        issuedAt: Date.now() - 172800000, // 2 days ago
-        metadata: {
-          badgeName: 'Hole in One',
-          description: 'Score a hole in one',
-          icon: '🏆',
-          rarity: 'legendary'
-        }
-      }
-    ];
-    setEarnedBadges(mockEarnedBadges);
-  }, []);
-
   const isBadgeEarned = (badgeId: string): boolean => {
-    return earnedBadges.some(award => award.badgeId === badgeId);
+    return !!earnedBadges && earnedBadges.some(award => award.badgeId === badgeId);
   };
 
   const getEarnedDate = (badgeId: string): string | null => {
+    if (!earnedBadges) return null;
     const award = earnedBadges.find(a => a.badgeId === badgeId);
     return award ? new Date(award.issuedAt).toLocaleDateString() : null;
   };
+
+  // Show login prompt if not logged in
+  if (!user) {
+    return (
+      <Layout>
+        <div className="min-h-screen bg-gradient-to-br from-yellow-50 to-purple-50 dark:from-gray-900 dark:to-gray-800 py-8">
+          <MobileContainer>
+            <Alert>
+              <LogIn className="h-4 w-4" />
+              <AlertDescription>
+                Please log in to view your golf achievements and earned badges.
+              </AlertDescription>
+            </Alert>
+          </MobileContainer>
+        </div>
+      </Layout>
+    );
+  }
+
+  // Show loading state
+  if (badgesLoading) {
+    return (
+      <Layout>
+        <div className="min-h-screen bg-gradient-to-br from-yellow-50 to-purple-50 dark:from-gray-900 dark:to-gray-800 py-8">
+          <MobileContainer>
+            <div className="max-w-6xl mx-auto space-y-6">
+              <Skeleton className="h-24 w-full" />
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                {[...Array(4)].map((_, i) => (
+                  <Skeleton key={i} className="h-24" />
+                ))}
+              </div>
+              <Skeleton className="h-12 w-full" />
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {[...Array(6)].map((_, i) => (
+                  <Skeleton key={i} className="h-48" />
+                ))}
+              </div>
+            </div>
+          </MobileContainer>
+        </div>
+      </Layout>
+    );
+  }
+
+  // Show error state
+  if (badgesError) {
+    return (
+      <Layout>
+        <div className="min-h-screen bg-gradient-to-br from-yellow-50 to-purple-50 dark:from-gray-900 dark:to-gray-800 py-8">
+          <MobileContainer>
+            <Alert variant="destructive">
+              <AlertDescription>
+                Failed to load achievements. Please try again later.
+              </AlertDescription>
+            </Alert>
+          </MobileContainer>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
@@ -103,7 +141,7 @@ export const AchievementsPage: React.FC = () => {
             <Card>
               <CardContent className="p-4 text-center">
                 <div className="text-2xl font-bold text-purple-600">
-                  {earnedBadges.length}
+                  {badgeStats.total}
                 </div>
                 <div className="text-sm text-gray-600 dark:text-gray-400">
                   Badges Earned
@@ -114,7 +152,7 @@ export const AchievementsPage: React.FC = () => {
             <Card>
               <CardContent className="p-4 text-center">
                 <div className="text-2xl font-bold text-yellow-600">
-                  {earnedBadges.filter(b => b.metadata.rarity === 'legendary').length}
+                  {badgeStats.legendary}
                 </div>
                 <div className="text-sm text-gray-600 dark:text-gray-400">
                   Legendary
@@ -125,7 +163,7 @@ export const AchievementsPage: React.FC = () => {
             <Card>
               <CardContent className="p-4 text-center">
                 <div className="text-2xl font-bold text-amber-600">
-                  {earnedBadges.filter(b => b.metadata.rarity === 'epic').length}
+                  {badgeStats.epic}
                 </div>
                 <div className="text-sm text-gray-600 dark:text-gray-400">
                   Epic
@@ -136,7 +174,7 @@ export const AchievementsPage: React.FC = () => {
             <Card>
               <CardContent className="p-4 text-center">
                 <div className="text-2xl font-bold text-yellow-600">
-                  {Math.round((earnedBadges.length / allBadges.length) * 100)}%
+                  {Math.round((badgeStats.total / allBadges.length) * 100)}%
                 </div>
                 <div className="text-sm text-gray-600 dark:text-gray-400">
                   Complete
@@ -242,12 +280,12 @@ export const AchievementsPage: React.FC = () => {
           <div className="mt-12 text-center">
             <div className="mb-4">
               <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                Progress: {earnedBadges.length} of {allBadges.length} badges earned
+                Progress: {badgeStats.total} of {allBadges.length} badges earned
               </div>
               <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                 <div
                   className="bg-yellow-600 h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${(earnedBadges.length / allBadges.length) * 100}%` }}
+                  style={{ width: `${(badgeStats.total / allBadges.length) * 100}%` }}
                 />
               </div>
             </div>

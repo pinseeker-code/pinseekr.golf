@@ -1,7 +1,6 @@
 /**
  * Demo round data for the interactive demo feature.
- * Pre-populated 9-hole round between 2 players with holes 1-8 filled in.
- * Hole 9 is left for user interaction.
+ * Pre-populated 9-hole round between 4 players with randomized scores.
  */
 
 import { GolfRound, GameMode, PlayerInRound, HoleScore } from './types';
@@ -19,129 +18,186 @@ export const DEMO_COURSE_PARS: { [hole: number]: number } = {
   9: 4,
 };
 
-// Pre-populated scores for holes 1-8 (realistic amateur scores)
-// Player 1: slightly better player
-const PLAYER_1_SCORES = [4, 4, 6, 5, 4, 3, 5, 5]; // holes 1-8
-const PLAYER_1_PUTTS = [2, 2, 2, 2, 1, 2, 2, 2];
-const PLAYER_1_FAIRWAYS = [true, false, true, false, true, false, true, true]; // N/A for par 3s but included
-const PLAYER_1_GREENS = [true, true, false, true, true, true, false, true];
-
-// Player 2: slightly higher handicap player
-const PLAYER_2_SCORES = [5, 4, 7, 5, 5, 4, 6, 5]; // holes 1-8
-const PLAYER_2_PUTTS = [2, 2, 3, 2, 2, 2, 2, 2];
-const PLAYER_2_FAIRWAYS = [false, false, true, true, false, false, true, false];
-const PLAYER_2_GREENS = [false, true, false, true, false, true, false, false];
+/**
+ * Generate a realistic score for a hole based on par and handicap.
+ * Lower handicap = scores closer to par
+ * Higher handicap = more variance and higher scores
+ */
+function generateScore(par: number, handicap: number): number {
+  // Base score tends toward par + (handicap factor)
+  const handicapFactor = handicap / 18; // 0 to 1 scale
+  const baseScore = par + (handicapFactor * 2); // Low handicap ~par, high handicap ~par+2
+  
+  // Add randomness: ±1 or ±2 strokes
+  const variance = Math.random() < 0.7 ? 
+    (Math.random() < 0.5 ? -1 : 1) : // 70% chance of ±1
+    (Math.random() < 0.5 ? -2 : 2);  // 30% chance of ±2
+  
+  let score = Math.round(baseScore + variance);
+  
+  // Clamp to reasonable values (min = par-2 for eagle, max depends on par)
+  const minScore = Math.max(par - 2, 2);
+  const maxScore = par + 4 + Math.floor(handicap / 10);
+  score = Math.max(minScore, Math.min(maxScore, score));
+  
+  return score;
+}
 
 /**
- * Creates a fresh demo round with pre-populated data.
- * Call this each time the demo page loads to get a clean copy.
+ * Generate putts based on score and handicap
+ */
+function generatePutts(score: number, par: number, handicap: number): number {
+  if (score <= par - 2) return 1; // Eagle or better = 1 putt
+  if (score === par - 1) return Math.random() < 0.7 ? 2 : 1; // Birdie usually 2
+  if (score === par) return Math.random() < 0.8 ? 2 : 3; // Par mostly 2
+  // Higher scores = more putts for high handicappers
+  const basePutts = 2;
+  const extraPutts = handicap > 12 && Math.random() < 0.3 ? 1 : 0;
+  return Math.min(4, basePutts + extraPutts);
+}
+
+/**
+ * Generate fairway hit probability based on handicap
+ */
+function generateFairway(par: number, handicap: number): boolean {
+  if (par === 3) return false; // Par 3s don't have fairways
+  const hitRate = 1 - (handicap / 36); // 0 handicap = 100%, 18 handicap = 50%
+  return Math.random() < hitRate;
+}
+
+/**
+ * Generate green in regulation based on par, score, and handicap
+ */
+function generateGreen(par: number, score: number, handicap: number): boolean {
+  if (score <= par - 1) return true; // Birdie or better = GIR
+  const girRate = Math.max(0.2, 0.8 - (handicap / 20));
+  return Math.random() < girRate;
+}
+
+/**
+ * Creates a fresh demo round with randomized scores.
+ * Call this each time the demo page loads to get varied results.
  */
 export function createDemoRound(): GolfRound {
   const holes: HoleScore[] = [];
 
   // Create all 9 holes
   for (let i = 1; i <= 9; i++) {
-    const par = DEMO_COURSE_PARS[i];
+    const par = DEMO_COURSE_PARS[i] ?? 4; // Default to par 4 if undefined
 
-    if (i <= 8) {
-      // Pre-populated holes 1-8
-      holes.push({
-        holeNumber: i,
-        par,
-        strokes: 0, // Will be set per-player
-        putts: 0,
-        fairways: false,
-        greens: false,
-        chips: 0,
-        sandTraps: 0,
-        penalties: 0,
-        notes: '',
-      });
-    } else {
-      // Hole 9 - empty for user input
-      holes.push({
-        holeNumber: i,
-        par,
-        strokes: 0,
-        putts: 0,
-        fairways: false,
-        greens: false,
-        chips: 0,
-        sandTraps: 0,
-        penalties: 0,
-        notes: '',
-      });
-    }
+    holes.push({
+      holeNumber: i,
+      par,
+      strokes: 0, // Will be set per-player
+      putts: 0,
+      fairways: false,
+      greens: false,
+      chips: 0,
+      sandTraps: 0,
+      penalties: 0,
+      notes: '',
+    });
   }
 
+  // Generate random scores for each player
+  const mackenzieScores = Object.keys(DEMO_COURSE_PARS).map(h => generateScore(DEMO_COURSE_PARS[Number(h)] ?? 4, 5));
+  const vanceScores = Object.keys(DEMO_COURSE_PARS).map(h => generateScore(DEMO_COURSE_PARS[Number(h)] ?? 4, 12));
+  const newtonScores = Object.keys(DEMO_COURSE_PARS).map(h => generateScore(DEMO_COURSE_PARS[Number(h)] ?? 4, 18));
+  const jungScores = Object.keys(DEMO_COURSE_PARS).map(h => generateScore(DEMO_COURSE_PARS[Number(h)] ?? 4, 15));
+
   // Create players with their scores
-  const player1: PlayerInRound = {
-    playerId: 'demo-player-1',
-    name: 'Player 1',
-    handicap: 12,
-    scores: [...PLAYER_1_SCORES, 0], // 8 pre-filled + hole 9 empty
-    total: PLAYER_1_SCORES.reduce((a, b) => a + b, 0),
+  const mackenzie: PlayerInRound = {
+    playerId: 'demo-mackenzie',
+    name: 'Alister Mackenzie',
+    handicap: 5,
+    scores: mackenzieScores,
+    total: mackenzieScores.reduce((a, b) => a + b, 0),
     netTotal: 0, // Will be calculated
     holeDetails: {},
   };
 
-  const player2: PlayerInRound = {
-    playerId: 'demo-player-2',
-    name: 'Player 2',
-    handicap: 18,
-    scores: [...PLAYER_2_SCORES, 0], // 8 pre-filled + hole 9 empty
-    total: PLAYER_2_SCORES.reduce((a, b) => a + b, 0),
+  const vance: PlayerInRound = {
+    playerId: 'demo-vance',
+    name: 'Bagger Vance',
+    handicap: 12,
+    scores: vanceScores,
+    total: vanceScores.reduce((a, b) => a + b, 0),
     netTotal: 0,
     holeDetails: {},
   };
 
-  // Populate hole details for each player
-  for (let i = 0; i < 8; i++) {
-    player1.holeDetails![i] = {
-      putts: PLAYER_1_PUTTS[i],
-      fairways: PLAYER_1_FAIRWAYS[i],
-      greens: PLAYER_1_GREENS[i],
+  const newton: PlayerInRound = {
+    playerId: 'demo-newton',
+    name: 'Isaac Newton',
+    handicap: 18,
+    scores: newtonScores,
+    total: newtonScores.reduce((a, b) => a + b, 0),
+    netTotal: 0,
+    holeDetails: {},
+  };
+
+  const jung: PlayerInRound = {
+    playerId: 'demo-jung',
+    name: 'Carl Jung',
+    handicap: 15,
+    scores: jungScores,
+    total: jungScores.reduce((a, b) => a + b, 0),
+    netTotal: 0,
+    holeDetails: {},
+  };
+
+  // Populate hole details for each player with generated data
+  for (let i = 0; i < 9; i++) {
+    const par = DEMO_COURSE_PARS[i + 1] ?? 4;
+    const mackScore = mackenzieScores[i] ?? par;
+    const vanceScore = vanceScores[i] ?? par;
+    const newtonScore = newtonScores[i] ?? par;
+    const jungScore = jungScores[i] ?? par;
+    
+    mackenzie.holeDetails![i] = {
+      putts: generatePutts(mackScore, par, 5),
+      fairways: generateFairway(par, 5),
+      greens: generateGreen(par, mackScore, 5),
       chips: 0,
       sandTraps: 0,
       penalties: 0,
     };
 
-    player2.holeDetails![i] = {
-      putts: PLAYER_2_PUTTS[i],
-      fairways: PLAYER_2_FAIRWAYS[i],
-      greens: PLAYER_2_GREENS[i],
+    vance.holeDetails![i] = {
+      putts: generatePutts(vanceScore, par, 12),
+      fairways: generateFairway(par, 12),
+      greens: generateGreen(par, vanceScore, 12),
+      chips: 0,
+      sandTraps: 0,
+      penalties: 0,
+    };
+
+    newton.holeDetails![i] = {
+      putts: generatePutts(newtonScore, par, 18),
+      fairways: generateFairway(par, 18),
+      greens: generateGreen(par, newtonScore, 18),
+      chips: 0,
+      sandTraps: 0,
+      penalties: 0,
+    };
+
+    jung.holeDetails![i] = {
+      putts: generatePutts(jungScore, par, 15),
+      fairways: generateFairway(par, 15),
+      greens: generateGreen(par, jungScore, 15),
       chips: 0,
       sandTraps: 0,
       penalties: 0,
     };
   }
-
-  // Initialize hole 9 details (empty)
-  player1.holeDetails![8] = {
-    putts: 0,
-    fairways: false,
-    greens: false,
-    chips: 0,
-    sandTraps: 0,
-    penalties: 0,
-  };
-
-  player2.holeDetails![8] = {
-    putts: 0,
-    fairways: false,
-    greens: false,
-    chips: 0,
-    sandTraps: 0,
-    penalties: 0,
-  };
 
   const round: GolfRound = {
     id: 'demo-round-' + Date.now(),
     courseId: 'demo-course',
     date: Date.now(),
-    players: [player1, player2],
+    players: [mackenzie, vance, newton, jung],
     gameMode: GameMode.STROKE_PLAY, // Primary mode
-    gameModes: ['stroke', 'match', 'snake'], // All active modes for demo
+    gameModes: ['stroke', 'nassau', 'snake'], // All active modes for demo
     holes,
     status: 'active',
     metadata: {
@@ -149,7 +205,7 @@ export function createDemoRound(): GolfRound {
       courseLocation: 'Demo City, USA',
       teeBox: 'White Tees',
       weather: 'Sunny, 72°F',
-      notes: 'Interactive demo round - try entering scores for Hole 9!',
+      notes: 'Interactive 9-hole demo round with 4 legendary players!',
     },
   };
 
@@ -176,7 +232,7 @@ export const DEMO_COURSE = {
 /**
  * Active game modes for the demo
  */
-export const DEMO_GAME_MODES = ['stroke', 'match', 'snake'] as const;
+export const DEMO_GAME_MODES = ['stroke', 'nassau', 'snake'] as const;
 
 /**
  * Snake transfer record
@@ -224,10 +280,10 @@ export function calculateDemoStats(round: GolfRound): DemoRoundStats {
 
     for (let i = 0; i < round.holes.length; i++) {
       const score = player.scores[i];
-      if (score > 0) {
+      if (score && score > 0) {
         holesPlayed++;
         grossTotal += score;
-        const par = round.holes[i].par;
+        const par = round.holes[i]?.par ?? 4;
         const diff = score - par;
 
         if (diff <= -1) birdies++;
@@ -244,7 +300,7 @@ export function calculateDemoStats(round: GolfRound): DemoRoundStats {
       }
     }
 
-    const fairwayHoles = round.holes.filter((h, i) => h.par >= 4 && player.scores[i] > 0).length;
+    const fairwayHoles = round.holes.filter((h, i) => h.par >= 4 && (player.scores[i] ?? 0) > 0).length;
     const coursePar = round.holes.reduce((sum, h) => sum + h.par, 0);
 
     return {
@@ -264,15 +320,15 @@ export function calculateDemoStats(round: GolfRound): DemoRoundStats {
     };
   };
 
-  const player1Stats = calcPlayerStats(round.players[0], 0);
-  const player2Stats = calcPlayerStats(round.players[1], 1);
+  const player1Stats = calcPlayerStats(round.players[0]!, 0);
+  const player2Stats = calcPlayerStats(round.players[1]!, 1);
 
   // Calculate match play status
   let p1Holes = 0, p2Holes = 0;
   for (let i = 0; i < round.holes.length; i++) {
-    const s1 = round.players[0].scores[i];
-    const s2 = round.players[1].scores[i];
-    if (s1 > 0 && s2 > 0) {
+    const s1 = round.players[0]!.scores[i];
+    const s2 = round.players[1]!.scores[i];
+    if (typeof s1 === 'number' && typeof s2 === 'number' && s1 > 0 && s2 > 0) {
       if (s1 < s2) p1Holes++;
       else if (s2 < s1) p2Holes++;
     }

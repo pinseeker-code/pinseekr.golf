@@ -90,13 +90,13 @@ Lightning payments via wallet connection strings. See "Lightning Payments" secti
 
 ---
 
-## NostrProvider & Relay Architecture
+### NostrProvider & Relay Architecture
 
 The `NostrProvider` (`src/components/NostrProvider.tsx`) manages relay connections using `NPool` from Nostrify.
 
 ### How Relays Work
 - **Primary relay**: `config.relayUrl` from `useAppContext()` (default: `wss://relay.pinseekr.golf`)
-- **Preset relays**: Hardcoded fallbacks in `App.tsx` (Primal, Nostr.Band)
+- **Preset relays**: Configured fallbacks in `App.tsx` (e.g., Pinseekr, Primal)
 - **Query routing**: Queries go to primary + up to 6 total relays
 - **Publish routing**: Events publish to primary + up to 5 total relays
 
@@ -109,7 +109,9 @@ const defaultConfig: AppConfig = {
 
 const presetRelays = [
   { url: 'wss://relay.pinseekr.golf', name: 'Pinseekr (Primary)' },
-  { url: 'wss://relay.primal.net', name: 'Primal (Fallback)' },
+  { url: 'wss://relay.primal.net', name: 'Primal' },
+  { url: 'wss://relay.damus.io', name: 'Damus' },
+  { url: 'wss://nos.lol', name: 'nos.lol' },
 ];
 ```
 

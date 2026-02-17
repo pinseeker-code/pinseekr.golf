@@ -17,8 +17,8 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { ScoreCard } from '@/components/scoring/ScoreCard';
-import { GameMode, GolfRound, PlayerInRound, HoleScore } from '@/lib/golf/types';
-import { GOLF_KINDS } from '@/lib/golf/types';
+import { GameMode, GolfRound, PlayerInRound, HoleScore, APP_KIND } from '@/lib/golf/types';
+import { SUBTYPES } from '@/lib/golfTags';
 import { generateRoundId, createRoundEvent, createGameEvent, createPlayerEvent } from '@/lib/golf/nostrEvents';
 import { parseRoundEvent, parseHoleScoreEvent } from '@/lib/golf/nostrEvents';
 import { processRoundWagers, netting, type Payable } from '@/lib/golf/scoringEngine';
@@ -188,15 +188,24 @@ export const NewRoundPage: React.FC = () => {
         if (!nostr) throw new Error('Nostr interface not available');
 
         const filters = [
-          { kinds: [GOLF_KINDS.ROUND], '#d': [urlRoundId], limit: 1 },
-          { kinds: [GOLF_KINDS.PLAYER, GOLF_KINDS.HOLE, GOLF_KINDS.GAME], '#round': [urlRoundId], limit: 500 }
+          { kinds: [APP_KIND], '#d': [urlRoundId], '#t': ['golf', SUBTYPES.ROUND], limit: 1 },
+          { kinds: [APP_KIND], '#round': [urlRoundId], '#t': ['golf', SUBTYPES.PLAYER, SUBTYPES.HOLE, SUBTYPES.GAME], limit: 500 }
         ];
 
         const events = (await nostr.query(filters, { signal: controller.signal })) as NostrEvent[];
 
         if (aborted) return;
 
-        const roundEvent = events.find((e: NostrEvent) => e.kind === GOLF_KINDS.ROUND && Array.isArray(e.tags) && (e.tags as string[][]).find((t: string[]) => t[0] === 'd' && t[1] === urlRoundId));
+        const roundEvent = events.find((e: NostrEvent) => {
+          if (e.kind !== APP_KIND || !Array.isArray(e.tags)) return false;
+          const tags = e.tags as string[][];
+          const isRoundEvent = tags.some(t => t[0] === 't' && t[1] === SUBTYPES.ROUND);
+          if (!isRoundEvent) return false;
+
+          const dTag = tags.find(t => t[0] === 'd')?.[1];
+          const roundIdTag = tags.find(t => t[0] === 'round-id')?.[1];
+          return dTag === urlRoundId || roundIdTag === urlRoundId;
+        });
 
         if (!roundEvent) {
           console.warn('Round not found on relays');
@@ -210,7 +219,7 @@ export const NewRoundPage: React.FC = () => {
         }
 
         // Collect player events (if any) and build players list
-        const playerEvents = events.filter((e: NostrEvent) => e.kind === GOLF_KINDS.PLAYER);
+        const playerEvents = events.filter((e: NostrEvent) => e.kind === APP_KIND && (e.tags as string[][]).some(t => t[0] === 't' && t[1] === SUBTYPES.PLAYER));
         const players: PlayerInRound[] = [];
 
         if (playerEvents.length === 0) {
@@ -219,7 +228,7 @@ export const NewRoundPage: React.FC = () => {
           if (playersTag && playersTag.length > 1) {
             for (let i = 1; i < playersTag.length; i++) {
               const pub = playersTag[i];
-              players.push({ playerId: pub, name: genUserName(pub), handicap: 0, scores: [], total: 0, netTotal: 0 });
+              if (pub) players.push({ playerId: pub, name: genUserName(pub), handicap: 0, scores: [], total: 0, netTotal: 0 });
             }
           }
         } else {
@@ -232,7 +241,7 @@ export const NewRoundPage: React.FC = () => {
         }
 
         // Parse hole score events and assign strokes into player scores arrays
-        const holeEvents = events.filter((e: NostrEvent) => e.kind === GOLF_KINDS.HOLE);
+        const holeEvents = events.filter((e: NostrEvent) => e.kind === APP_KIND && (e.tags as string[][]).some(t => t[0] === 't' && t[1] === SUBTYPES.HOLE));
         for (const he of holeEvents) {
           const hole = parseHoleScoreEvent(he as NostrEvent);
           if (!hole) continue;
@@ -291,7 +300,7 @@ export const NewRoundPage: React.FC = () => {
 
     const fetchPlayers = async () => {
       try {
-        const filter: NostrFilter = { kinds: [GOLF_KINDS.PLAYER], '#round': [round.id as string], limit: 200 } as NostrFilter;
+        const filter: NostrFilter = { kinds: [APP_KIND], '#round': [round.id as string], '#t': ['golf', SUBTYPES.PLAYER], limit: 200 } as NostrFilter;
         const events = await nostr.query([filter], { signal: controller.signal }) as NostrEvent[];
         if (!mounted) return;
 
@@ -353,16 +362,14 @@ export const NewRoundPage: React.FC = () => {
       // Also publish an explicit invite-accept event
       try {
         await publishEvent({
-          kind: GOLF_KINDS.INVITE_ACCEPT,
-          created_at: Math.floor(Date.now() / 1000),
-          tags: [['d', round.id], ['player', user.pubkey]],
-          content: ''
-        });
-      } catch {
-        // non-fatal
-      }
-
-      // Optimistic local update
+            kind: APP_KIND,
+            created_at: Math.floor(Date.now() / 1000),
+            tags: [['d', round.id], ['player', user.pubkey], ['t', 'golf'], ['t', SUBTYPES.INVITE_ACCEPT]],
+            content: ''
+          });
+        } catch {
+          // non-fatal
+        }
       setRound(prev => ({ ...prev!, players: [...(prev!.players || []), player] }));
       toast({ title: 'Joined', description: 'You have joined the round' });
     } catch (err) {
@@ -483,14 +490,15 @@ export const NewRoundPage: React.FC = () => {
 
   // Get list of selected game modes for tabs in selection order
   const selectedGameModeList = selectedGameModeOrder
-    .filter(key => selectedGameModes[key] && key !== 'pinseekrCup')
+    .filter((key) => (selectedGameModes as unknown as Record<string, boolean>)[key] && key !== 'pinseekrCup')
     .map(key => gameModeData[key as keyof typeof gameModeData])
     .filter(Boolean);
 
   // Update active tab when game modes change
   useEffect(() => {
     if (selectedGameModeList.length > 0 && !selectedGameModeList.some(mode => mode.key === activeGameModeTab)) {
-      setActiveGameModeTab(selectedGameModeList[0].key);
+      const first = selectedGameModeList[0];
+      if (first) setActiveGameModeTab(first.key);
     }
   }, [selectedGameModes, activeGameModeTab, selectedGameModeList]);
 
@@ -509,14 +517,14 @@ export const NewRoundPage: React.FC = () => {
       
       if (existingUserIndex >= 0) {
         // User already exists - only update NAME (preserve user-edited handicap)
-        const existing = currentPlayers[existingUserIndex];
+        const existing = currentPlayers[existingUserIndex]!;
         if (existing.name === userName) {
           // No change needed
           return prev;
         }
         // Update only the name, keep handicap as-is
         const updatedPlayers = [...currentPlayers];
-        updatedPlayers[existingUserIndex] = { ...existing, name: userName };
+        updatedPlayers[existingUserIndex] = { ...existing!, name: userName };
         return { ...prev!, players: updatedPlayers };
       } else {
         // Add user as Player 1 (at the beginning) - use Nostr handicap as initial value
@@ -856,12 +864,12 @@ export const NewRoundPage: React.FC = () => {
 
         // Publish tournament event with wagers and invoice placeholders
         const tournamentEvent = {
-          kind: GOLF_KINDS.TOURNAMENT,
+          kind: APP_KIND,
           created_at: Math.floor(Date.now() / 1000),
           tags: [
             ['d', `${round.id}-tournament`],
             ['t', 'golf'],
-            ['t', 'tournament'],
+            ['t', SUBTYPES.TOURNAMENT],
             ['t', 'pinseekr-cup']
           ],
           content: JSON.stringify({
@@ -1094,12 +1102,12 @@ export const NewRoundPage: React.FC = () => {
       // Publish settlement event with payments and invoices (some may be placeholders)
       try {
         const settlementEvent: Omit<NostrEvent, 'id' | 'pubkey' | 'sig'> = {
-          kind: GOLF_KINDS.RESULT,
+          kind: APP_KIND,
           created_at: Math.floor(Date.now() / 1000),
           tags: [
             ['d', `${round.id}-result`],
             ['t', 'golf'],
-            ['t', 'settlement'],
+            ['t', SUBTYPES.RESULT],
             ['round', `${round.id ?? ''}`]
           ],
           content: JSON.stringify({ payments: settlementPreview, invoices: invoicesResult, note: 'Net settlement (some invoices may be placeholders)' })
@@ -3310,7 +3318,7 @@ export const NewRoundPage: React.FC = () => {
                               onValueChange={(value) => {
                                 // value is encoded as "name||yardage"
                                 const [name, yardageStr] = value.split('||');
-                                const yardage = parseInt(yardageStr) || 0;
+                                const yardage = parseInt(yardageStr || '0') || 0;
                                 setRound(prev => ({
                                   ...prev!,
                                   metadata: { ...prev!.metadata!, teeBox: name, teeYardage: yardage }

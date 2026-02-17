@@ -12,14 +12,15 @@ export function useAuthor(pubkey: string | undefined) {
         return {};
       }
 
-      // Increase timeout to 5s to avoid spurious timeouts on slow relays
+      // 8s timeout for metadata queries - kind 0 is often slower to fetch
       const [event] = await nostr.query(
         [{ kinds: [0], authors: [pubkey!], limit: 1 }],
-        { signal: AbortSignal.any([signal, AbortSignal.timeout(5000)]) },
+        { signal: AbortSignal.any([signal, AbortSignal.timeout(8000)]) },
       );
 
       if (!event) {
-        throw new Error('No event found');
+        // Return empty object instead of throwing - profile may not exist yet
+        return {};
       }
 
       try {

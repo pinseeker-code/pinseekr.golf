@@ -44,7 +44,7 @@ describe('PinseekrCupEngine', () => {
     });
 
     it('should throw error for invalid player count', () => {
-      expect(() => createPinseekrCup([mockPlayers[0]])).toThrow('Pinseekr Cup requires an even number of players');
+      expect(() => createPinseekrCup([mockPlayers[0]!])).toThrow('Pinseekr Cup requires an even number of players');
       expect(() => createPinseekrCup(mockPlayers.slice(0, 3))).toThrow('Pinseekr Cup requires an even number of players');
     });
   });
@@ -83,6 +83,11 @@ describe('PinseekrCupEngine', () => {
       expect(result.roundId).toBe('round-3');
       expect(result.gameMode).toBe('dots');
       expect(result.summary).toContain('Dots Championship');
+      
+      // Verify dots scoring actually calculates points (not both teams at 0)
+      const totalPointsAwarded = result.pointsAwarded['Team A'] + result.pointsAwarded['Team B'];
+      expect(totalPointsAwarded).toBeGreaterThan(0);
+      expect(totalPointsAwarded).toBeLessThanOrEqual(4); // Max points for dots round
     });
 
     it('should play a snake round correctly', () => {
@@ -99,7 +104,7 @@ describe('PinseekrCupEngine', () => {
     });
 
     it('should throw error for already completed round', () => {
-      tournament.rounds[0].completed = true;
+      tournament.rounds[0]!.completed = true;
       expect(() => playPinseekrCupRound(tournament, 'round-1', mockScores))
         .toThrow('Round round-1 has already been completed');
     });
@@ -176,10 +181,10 @@ describe('PinseekrCupEngine', () => {
       
       // Check round structure
       const rounds = DEFAULT_PINSEEKR_CUP.rounds;
-      expect(rounds[0].gameMode).toBe('stroke');
-      expect(rounds[1].gameMode).toBe('match');
-      expect(rounds[2].gameMode).toBe('dots');
-      expect(rounds[3].gameMode).toBe('snake');
+      expect(rounds[0]!.gameMode).toBe('stroke');
+      expect(rounds[1]!.gameMode).toBe('match');
+      expect(rounds[2]!.gameMode).toBe('dots');
+      expect(rounds[3]!.gameMode).toBe('snake');
       
       // Check total points available
       const totalPointsAvailable = rounds.reduce((sum, round) => sum + round.pointsAvailable, 0);

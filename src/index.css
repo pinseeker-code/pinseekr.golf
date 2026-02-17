@@ -100,6 +100,25 @@
   }
 }
 
+/* Subtle scrollbar styling */
+.scrollbar-thin::-webkit-scrollbar {
+  height: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: rgb(31, 41, 55);
+  border-radius: 3px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgb(75, 85, 99);
+  border-radius: 3px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: rgb(107, 114, 128);
+}
+
 /* Hide textual "Selected" badges on the game-mode cards (visual selection uses color/highlight)
    Scoped to the grid that renders the game-mode cards via the `data-hide-badges` attribute. */
 [data-hide-badges] .absolute.top-2.right-2 {

@@ -52,14 +52,14 @@ export class SixesEngine {
 
       // Add points to player totals
       Object.entries(segmentResult.points).forEach(([playerId, points]) => {
-        playerTotals[playerId] += points;
+        playerTotals[playerId] = (playerTotals[playerId] ?? 0) + points;
       });
     }
 
     // Determine overall winners (highest total points)
     const winners = Object.entries(playerTotals)
       .sort(([, a], [, b]) => b - a)
-      .filter(([, score], index, arr) => score === arr[0][1])
+      .filter(([, score], index, arr) => arr.length > 0 && score === arr[0]![1])
       .map(([playerId]) => playerId);
 
     return {
@@ -119,7 +119,7 @@ export class SixesEngine {
         [['B', 'C'], ['A']]
       ];
 
-      return rotations[segmentIndex].map(playerNames =>
+      return (rotations[segmentIndex] ?? []).map(playerNames =>
         this.createTeamFromNames(playerNames, players)
       );
     } else if (playerCount === 4) {
@@ -133,7 +133,7 @@ export class SixesEngine {
         [['A', 'D'], ['B', 'C']]
       ];
 
-      return rotations[segmentIndex].map(playerNames =>
+      return (rotations[segmentIndex] ?? []).map(playerNames =>
         this.createTeamFromNames(playerNames, players)
       );
     } else {
@@ -150,7 +150,7 @@ export class SixesEngine {
       // Map A, B, C, D to actual player IDs based on order
       const index = name.charCodeAt(0) - 'A'.charCodeAt(0);
       return allPlayers[index]?.playerId;
-    }).filter(Boolean);
+    }).filter((id): id is string => !!id);
 
     return {
       players: teamPlayers,

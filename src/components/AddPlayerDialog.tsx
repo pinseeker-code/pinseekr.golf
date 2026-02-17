@@ -16,19 +16,26 @@ import { useToast } from '@/hooks/useToast';
 import { nip19 } from 'nostr-tools';
 import { useGolfProfile } from '@/hooks/useGolfProfile';
 import { useHandicapCalculation } from '@/hooks/useHandicapCalculation';
+import { useSendInvite } from '@/hooks/useSendInvite';
 
 interface AddPlayerDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onAddPlayer: (player: PlayerInRound) => void;
   existingPlayers: PlayerInRound[];
+  roundId?: string;
+  joinCode?: string;
+  courseName?: string;
 }
 
 export const AddPlayerDialog: React.FC<AddPlayerDialogProps> = ({
   open,
   onOpenChange,
   onAddPlayer,
-  existingPlayers
+  existingPlayers,
+  roundId,
+  joinCode,
+  courseName,
 }) => {
   const [manualName, setManualName] = useState('');
   const [nostrPubkey, setNostrPubkey] = useState('');
@@ -40,6 +47,7 @@ export const AddPlayerDialog: React.FC<AddPlayerDialogProps> = ({
   const { user } = useCurrentUser();
   const { data: contacts, isLoading: contactsLoading, error: contactsError } = useContacts();
   const { toast } = useToast();
+  const { mutate: sendInvite } = useSendInvite();
   
   // Fetch profile data for the validated pubkey
   const { data: profileData } = useAuthor(validatedPubkey || '');
@@ -157,10 +165,11 @@ export const AddPlayerDialog: React.FC<AddPlayerDialogProps> = ({
   const handleAddNostrPlayer = (friend: { pubkey: string; name?: string; picture?: string; handicap?: number }) => {
     // Use known handicap from friend data, or default to 0
     const handicap = friend.handicap ?? 0;
+    const displayName = friend.name || genUserName(friend.pubkey);
     
     const newPlayer: PlayerInRound = {
       playerId: friend.pubkey,
-      name: friend.name || genUserName(friend.pubkey),
+      name: displayName,
       handicap,
       scores: [],
       total: 0,
@@ -168,6 +177,28 @@ export const AddPlayerDialog: React.FC<AddPlayerDialogProps> = ({
     };
 
     onAddPlayer(newPlayer);
+
+    // Send invite if we have round info
+    if (roundId && joinCode) {
+      sendInvite(
+        { recipientPubkey: friend.pubkey, roundId, joinCode, courseName },
+        {
+          onSuccess: (event) => {
+            if (event) {
+              toast({ title: 'Invite sent', description: `${displayName} has been invited to the round` });
+            } else {
+              toast({ title: 'Player added', description: `Share the round code with ${displayName} to invite them` });
+            }
+          },
+          onError: () => {
+            toast({ title: 'Player added', description: `Share the round code with ${displayName} to invite them`, variant: 'destructive' });
+          },
+        }
+      );
+    } else {
+      toast({ title: 'Player added', description: `Share the round code with ${displayName} to invite them` });
+    }
+
     onOpenChange(false);
   };
 
@@ -193,8 +224,26 @@ export const AddPlayerDialog: React.FC<AddPlayerDialogProps> = ({
 
     onAddPlayer(newPlayer);
 
-    // Player added — share join link manually (QR code / copy link)
-    toast({ title: 'Player added', description: `Share the round code or QR with ${displayName} to invite them` });
+    // Send invite if we have round info
+    if (roundId && joinCode) {
+      sendInvite(
+        { recipientPubkey: validatedPubkey, roundId, joinCode, courseName },
+        {
+          onSuccess: (event) => {
+            if (event) {
+              toast({ title: 'Invite sent', description: `${displayName} has been invited to the round` });
+            } else {
+              toast({ title: 'Player added', description: `Share the round code with ${displayName} to invite them` });
+            }
+          },
+          onError: () => {
+            toast({ title: 'Player added', description: `Share the round code with ${displayName} to invite them`, variant: 'destructive' });
+          },
+        }
+      );
+    } else {
+      toast({ title: 'Player added', description: `Share the round code or QR with ${displayName} to invite them` });
+    }
 
     setNostrPubkey('');
     setValidatedPubkey(null);

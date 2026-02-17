@@ -155,7 +155,7 @@ export function playPinseekrCupRound(
     strokes[playerId] = {};
     const playerScores = scores[playerId] || [];
     playerScores.forEach((score, index) => {
-      strokes[playerId][index + 1] = score;
+      strokes[playerId]![index + 1] = score;
     });
   });
 
@@ -167,7 +167,7 @@ export function playPinseekrCupRound(
   tournament.players.forEach(player => {
     handicap.pops[player.id] = {};
     for (let hole = 1; hole <= 18; hole++) {
-      handicap.pops[player.id][hole] = Math.floor(player.handicap / 18) + (hole <= (player.handicap % 18) ? 1 : 0);
+      handicap.pops[player.id]![hole] = Math.floor(player.handicap / 18) + (hole <= (player.handicap % 18) ? 1 : 0);
     }
   });
 
@@ -223,7 +223,7 @@ export function playPinseekrCupRound(
         putts[playerId] = {};
         for (let hole = 1; hole <= 18; hole++) {
           // Estimate putts based on score (simplified)
-          const score = strokes[playerId][hole] || 4;
+          const score = strokes[playerId]![hole] || 4;
           const par = 4;
           putts[playerId][hole] = Math.max(1, Math.min(4, score - par + 2));
         }
@@ -328,15 +328,15 @@ function calculateSinglesMatchPoints(teamAPlayers: PinseekrCupPlayer[], teamBPla
   const maxMatches = Math.min(teamAPlayers.length, teamBPlayers.length);
   
   for (let i = 0; i < maxMatches; i++) {
-    const playerA = teamAPlayers[i];
-    const playerB = teamBPlayers[i];
+    const playerA = teamAPlayers[i]!;
+    const playerB = teamBPlayers[i]!;
     
     // Create a match between these two players
     const matchData: CoreRoundData = {
       players: [playerA.id, playerB.id],
       strokes: {
-        [playerA.id]: data.strokes[playerA.id],
-        [playerB.id]: data.strokes[playerB.id]
+        [playerA.id]: data.strokes[playerA.id] || {},
+        [playerB.id]: data.strokes[playerB.id] || {}
       },
       handicap: data.handicap,
       course: data.course
@@ -371,11 +371,13 @@ function calculateDotsPoints(results: unknown, players: PinseekrCupPlayer[]): { 
   let teamAPoints = 0;
   let teamBPoints = 0;
 
-  const dotsResults = results as { results: Array<{ playerId: string; totalPoints: number }> };
-  dotsResults.results?.forEach((playerResult) => {
-    const player = players.find(p => p.id === playerResult.playerId);
-    if (player?.team === 'Team A') teamAPoints += playerResult.totalPoints || 0;
-    else if (player?.team === 'Team B') teamBPoints += playerResult.totalPoints || 0;
+  const dotsResults = results as { totals: { [playerId: string]: { totalDots: number } } };
+  
+  // Sum dots for each team
+  Object.entries(dotsResults.totals || {}).forEach(([playerId, playerStats]) => {
+    const player = players.find(p => p.id === playerId);
+    if (player?.team === 'Team A') teamAPoints += playerStats.totalDots || 0;
+    else if (player?.team === 'Team B') teamBPoints += playerStats.totalDots || 0;
   });
 
   // Convert to tournament points (team with more dots gets the points)
@@ -427,15 +429,15 @@ function calculateMVP(tournament: PinseekrCupConfig, completedRounds: PinseekrCu
     }, 0);
   });
 
-  const mvpId = Object.keys(playerContributions).reduce((a, b) => 
-    playerContributions[a] > playerContributions[b] ? a : b
-  );
+  const ids = Object.keys(playerContributions);
+  if (ids.length === 0) return undefined;
 
+  const mvpId = ids.reduce((a, b) => (playerContributions[a] ?? 0) > (playerContributions[b] ?? 0) ? a : b);
   const mvpPlayer = tournament.players.find(p => p.id === mvpId);
   
   return mvpPlayer ? {
     playerId: mvpId,
     name: mvpPlayer.name,
-    pointsContributed: Math.round(playerContributions[mvpId] * 10) / 10
+    pointsContributed: Math.round((playerContributions[mvpId] ?? 0) * 10) / 10
   } : undefined;
 }

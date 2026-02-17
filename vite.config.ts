@@ -34,6 +34,7 @@ export default defineConfig(() => ({
     include: ['nostr-tools'],
   },
   build: {
+    chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
         manualChunks(id) {

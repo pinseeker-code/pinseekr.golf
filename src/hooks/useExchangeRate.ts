@@ -108,8 +108,7 @@ export function useExchangeRate(): UseExchangeRateReturn {
   // Fetch rates on mount
   useEffect(() => {
     fetchRates();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [fetchRates]);
 
   // Convert any currency amount to sats
   const convertToSats = useCallback((amount: number, currency: Currency): number => {

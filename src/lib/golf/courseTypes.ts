@@ -1,4 +1,5 @@
 // Golf Course Database Types
+import { APP_KIND } from './types';
 
 export interface GolfCourse {
   id: string;
@@ -171,12 +172,12 @@ export interface TeeTimeSlot {
 }
 
 // Nostr Event Kinds for Course Database
-// Note: COURSE kind is defined in types.ts as GOLF_KINDS.COURSE (36902)
+// Canonical app-level kind is `APP_KIND` (used for golf domain events)
 export const COURSE_KINDS = {
-  COURSE: 36902,        // Golf course information (now 36902 in v2 schema)
-  COURSE_REVIEW: 30101, // Course reviews
-  TEE_TIME: 30102,      // Tee time availability
-  COURSE_UPDATE: 30103, // Course condition updates
+  COURSE: APP_KIND,        // Golf course information (now consolidated under APP_KIND)
+  COURSE_REVIEW: 30101,    // Course reviews
+  TEE_TIME: 30102,         // Tee time availability
+  COURSE_UPDATE: 30103,    // Course condition updates
 } as const;
 
 // Popular Golf Course Categories

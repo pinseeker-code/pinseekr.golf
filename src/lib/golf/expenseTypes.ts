@@ -100,7 +100,8 @@ export function calculateExpenseSplits(
   expenses: Expense[],
   players: { playerId: string; name: string }[]
 ): { splits: ExpenseSplit[]; settlements: ExpenseSettlement[] } {
-  const _playerMap = new Map(players.map(p => [p.playerId, p.name]));
+  // map of playerId -> name (unused currently)
+  // const _playerMap = new Map(players.map(p => [p.playerId, p.name]));
   const balances = new Map<string, { paid: number; owed: number }>();
 
   // Initialize balances
@@ -169,8 +170,8 @@ export function calculateExpenseSplits(
   // Match debtors to creditors
   let i = 0, j = 0;
   while (i < debtors.length && j < creditors.length) {
-    const debtor = debtors[i];
-    const creditor = creditors[j];
+    const debtor = debtors[i]!;
+    const creditor = creditors[j]!;
     
     const amount = Math.min(Math.abs(debtor.netBalance), creditor.netBalance);
     

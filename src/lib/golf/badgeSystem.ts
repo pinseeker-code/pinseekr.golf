@@ -358,6 +358,6 @@ export class BadgeService {
       legendary: { color: 'text-yellow-600', name: 'Legendary' }
     };
 
-    return rarityMap[rarity] || rarityMap.common;
+    return (rarityMap[rarity as keyof typeof rarityMap] ?? rarityMap.common) as { color: string; name: string };
   }
 }

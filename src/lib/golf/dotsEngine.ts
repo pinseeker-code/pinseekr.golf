@@ -139,48 +139,48 @@ export function dotsEngine(data: ExtendedRoundData, config: DotsConfig = {}): Do
       if (fairwayHit) {
         holeDots += defaults.fairwayDots;
         holeBreakdown.fairway = defaults.fairwayDots;
-        totals[playerId].fairwayDots += defaults.fairwayDots;
+        totals[playerId]!.fairwayDots += defaults.fairwayDots;
       }
 
       // Green in regulation
       if (greenInRegulation) {
         holeDots += defaults.girDots;
         holeBreakdown.gir = defaults.girDots;
-        totals[playerId].girDots += defaults.girDots;
+        totals[playerId]!.girDots += defaults.girDots;
       }
 
       // One putt
       if (putts === 1) {
         holeDots += defaults.onePuttDots;
         holeBreakdown.onePutt = defaults.onePuttDots;
-        totals[playerId].onePuttDots += defaults.onePuttDots;
+        totals[playerId]!.onePuttDots += defaults.onePuttDots;
       }
 
       // Birdie
       if (strokes === par - 1) {
         holeDots += defaults.birdieDots;
         holeBreakdown.birdie = defaults.birdieDots;
-        totals[playerId].birdieDots += defaults.birdieDots;
+        totals[playerId]!.birdieDots += defaults.birdieDots;
       }
 
       // Eagle or better
       if (strokes <= par - 2) {
         holeDots += defaults.eagleDots;
         holeBreakdown.eagle = defaults.eagleDots;
-        totals[playerId].eagleDots += defaults.eagleDots;
+        totals[playerId]!.eagleDots += defaults.eagleDots;
       }
 
       // Double bogey or worse penalty
       if (strokes >= par + 2) {
         holeDots += defaults.doubleBogeyPenalty;
         holeBreakdown.penalty = defaults.doubleBogeyPenalty;
-        totals[playerId].penaltyDots += defaults.doubleBogeyPenalty;
+        totals[playerId]!.penaltyDots += defaults.doubleBogeyPenalty;
       }
 
       holeBreakdown.total = holeDots;
       playerDots[playerId] = holeDots;
       breakdown[playerId] = holeBreakdown;
-      totals[playerId].totalDots += holeDots;
+      totals[playerId]!.totalDots += holeDots;
     });
 
     holeResults.push({
@@ -202,10 +202,12 @@ export function dotsEngine(data: ExtendedRoundData, config: DotsConfig = {}): Do
   // Set positions with tie handling
   let currentPosition = 1;
   for (let i = 0; i < leaderboard.length; i++) {
-    if (i > 0 && leaderboard[i].dots < leaderboard[i - 1].dots) {
+    const curr = leaderboard[i]!;
+    const prev = leaderboard[i - 1]!;
+    if (i > 0 && curr.dots < prev.dots) {
       currentPosition = i + 1;
     }
-    leaderboard[i].position = currentPosition;
+    curr.position = currentPosition;
   }
 
   // Calculate payments (each player pays/receives based on dot difference)
@@ -216,7 +218,8 @@ export function dotsEngine(data: ExtendedRoundData, config: DotsConfig = {}): Do
       for (let j = i + 1; j < players.length; j++) {
         const player1 = players[i];
         const player2 = players[j];
-        const dotDiff = totals[player1].totalDots - totals[player2].totalDots;
+        if (!player1 || !player2) continue;
+        const dotDiff = (totals[player1]?.totalDots ?? 0) - (totals[player2]?.totalDots ?? 0);
         
         if (dotDiff > 0) {
           // Player1 has more dots, Player2 pays Player1

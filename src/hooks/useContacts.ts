@@ -40,9 +40,13 @@ export function useContacts() {
 
         // Extract pubkeys from the most recent contact list
         const contactList = contactListEvents[0];
+        if (!contactList) {
+          return [];
+        }
+        
         const contactPubkeys = contactList.tags
           .filter(tag => tag[0] === 'p' && tag[1])
-          .map(tag => tag[1])
+          .map(tag => tag[1]!)
           .slice(0, 100); // Limit to first 100 contacts
 
         if (contactPubkeys.length === 0) {

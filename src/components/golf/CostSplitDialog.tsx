@@ -41,6 +41,9 @@ import {
   calculateExpenseSplits,
 } from '@/lib/golf/expenseTypes';
 import { useExchangeRate } from '@/hooks/useExchangeRate';
+import { useNostrPublish } from '@/hooks/useNostrPublish';
+import { createExpenseEvent } from '@/lib/golf/nostrEvents';
+import { ExpensePaymentDialog } from '@/components/golf/ExpensePaymentDialog';
 
 interface CostSplitDialogProps {
   open: boolean;
@@ -48,6 +51,7 @@ interface CostSplitDialogProps {
   players: { playerId: string; name: string }[];
   expenses: Expense[];
   onExpensesChange: (expenses: Expense[]) => void;
+  roundId?: string;
 }
 
 const CURRENCIES: Currency[] = ['USD', 'CAD', 'EUR', 'GBP', 'AUD', 'MXN', 'sats'];
@@ -58,13 +62,27 @@ export const CostSplitDialog: React.FC<CostSplitDialogProps> = ({
   players,
   expenses,
   onExpensesChange,
+  roundId,
 }) => {
-  const { convertToSats, formatCurrency, rates, loading: ratesLoading, refresh } = useExchangeRate();
+  const { convertToSats, convertFromSats, formatCurrency, loading: ratesLoading, refresh } = useExchangeRate();
+  const { mutate: publishEvent } = useNostrPublish();
   
   const [activeTab, setActiveTab] = useState<'add' | 'summary'>('add');
+  const [displayCurrency, setDisplayCurrency] = useState<Currency>('USD');
   const [splitMode, setSplitMode] = useState<SplitMode>('equal');
   const [customSplitCurrency, setCustomSplitCurrency] = useState<Currency>('USD');
   const [customSplits, setCustomSplits] = useState<Record<string, string>>({});
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+  const [selectedSettlement, setSelectedSettlement] = useState<{
+    fromPlayerId: string;
+    fromPlayerName: string;
+    toPlayerId: string;
+    toPlayerName: string;
+    amountSats: number;
+  } | null>(null);
+
+  // Simple color palette for players (will repeat if more players than colors)
+  const PLAYER_COLORS = ['#60A5FA', '#F472B6', '#34D399', '#F59E0B', '#A78BFA', '#FB7185'];
   const [newExpense, setNewExpense] = useState({
     category: ExpenseCategory.FOOD as ExpenseCategory,
     description: '',
@@ -83,10 +101,27 @@ export const CostSplitDialog: React.FC<CostSplitDialogProps> = ({
         : '';
     });
     setCustomSplits(initialSplits);
-  }, [players.length, splitMode]);
+  }, [players, splitMode]);
 
-  // Calculate splits
-  const { splits, settlements } = useMemo(() => {
+  // When viewing the summary, prefer the currency currently selected on the Add Expense form
+  React.useEffect(() => {
+    if (activeTab === 'summary') {
+      setDisplayCurrency(newExpense.currency);
+    }
+  }, [activeTab, newExpense.currency]);
+
+  const handlePaymentSuccess = () => {
+    // Refresh or notify user of successful payment
+    // In a more complete implementation, this would mark the settlement as paid
+  };
+
+  const handleOpenPaymentDialog = (settlement: typeof settlements[0]) => {
+    setSelectedSettlement(settlement);
+    setPaymentDialogOpen(true);
+  };
+
+  // Calculate settlements
+  const { settlements } = useMemo(() => {
     return calculateExpenseSplits(expenses, players);
   }, [expenses, players]);
 
@@ -109,9 +144,9 @@ export const CostSplitDialog: React.FC<CostSplitDialogProps> = ({
     let expenseCustomSplits: CustomSplit[] | undefined;
     if (splitMode !== 'equal') {
       expenseCustomSplits = newExpense.splitBetweenPlayerIds
-        .filter(playerId => customSplits[playerId] && parseFloat(customSplits[playerId]) > 0)
+        .filter(playerId => customSplits[playerId] && parseFloat(customSplits[playerId] ?? '0') > 0)
         .map(playerId => {
-          const value = parseFloat(customSplits[playerId]) || 0;
+          const value = parseFloat(customSplits[playerId] ?? '0') || 0;
           // For fixed mode, convert the input currency to sats
           const finalValue = splitMode === 'fixed' 
             ? convertToSats(value, customSplitCurrency)
@@ -136,6 +171,12 @@ export const CostSplitDialog: React.FC<CostSplitDialogProps> = ({
 
     onExpensesChange([...expenses, expense]);
 
+    // Publish expense to Nostr if roundId is provided
+    if (roundId) {
+      const expenseEvent = createExpenseEvent(expense, roundId);
+      publishEvent(expenseEvent);
+    }
+
     // Reset form
     setNewExpense({
       ...newExpense,
@@ -158,6 +199,7 @@ export const CostSplitDialog: React.FC<CostSplitDialogProps> = ({
   };
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-full max-w-lg mx-4 sm:mx-auto max-h-[90vh] flex flex-col">
         <DialogHeader>
@@ -489,6 +531,23 @@ export const CostSplitDialog: React.FC<CostSplitDialogProps> = ({
               </div>
             ) : (
               <>
+                <div className="flex items-center justify-end gap-2">
+                  <Label className="text-xs">Display</Label>
+                  <Select
+                    value={displayCurrency}
+                    onValueChange={(v) => setDisplayCurrency(v as Currency)}
+                  >
+                    <SelectTrigger className="h-8 w-28">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CURRENCIES.map(c => (
+                        <SelectItem key={c} value={c}>{c === 'sats' ? 'sats' : c}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 {/* Total */}
                 <Card>
                   <CardContent className="p-4">
@@ -499,44 +558,151 @@ export const CostSplitDialog: React.FC<CostSplitDialogProps> = ({
                           {totalSats.toLocaleString()} sats
                         </div>
                         <div className="text-sm text-muted-foreground">
-                          ≈ {formatCurrency(totalSats / 100_000_000 * (rates?.btcToUsd || 100000), 'USD')}
+                          ≈ {formatCurrency(convertFromSats(totalSats, displayCurrency), displayCurrency)}
                         </div>
                       </div>
                     </div>
                   </CardContent>
                 </Card>
 
-                {/* Player Balances */}
-                <div className="space-y-2">
-                  <Label className="text-muted-foreground">Player Balances</Label>
-                  {splits.map(split => (
-                    <div
-                      key={split.playerId}
-                      className={`flex items-center justify-between p-3 rounded-md border ${
-                        split.netBalance > 0
-                          ? 'bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800'
-                          : split.netBalance < 0
-                          ? 'bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800'
-                          : 'bg-muted border-border'
-                      }`}
-                    >
-                      <span className="font-medium">{split.playerName}</span>
-                      <div className="text-right">
-                        <div className={`font-mono font-medium ${
-                          split.netBalance > 0
-                            ? 'text-green-600 dark:text-green-400'
-                            : split.netBalance < 0
-                            ? 'text-red-600 dark:text-red-400'
-                            : ''
-                        }`}>
-                          {split.netBalance > 0 ? '+' : ''}{split.netBalance.toLocaleString()} sats
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          Paid: {split.totalPaid.toLocaleString()} • Owes: {split.totalOwed.toLocaleString()}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                {/* Category-by-category breakdown */}
+                <div className="space-y-3">
+                  <Label className="text-muted-foreground">Category Breakdown</Label>
+
+                  {/* compute category summary */}
+                  {(() => {
+                    const categories: Record<string, {
+                      total: number;
+                      expenses: typeof expenses;
+                      paid: Record<string, number>;
+                      owed: Record<string, number>;
+                    }> = {};
+                    // init categories
+                    expenses.forEach(exp => {
+                      if (!categories[exp.category]) {
+                        categories[exp.category] = {
+                          total: 0,
+                          expenses: [] as typeof expenses,
+                          paid: {} as Record<string, number>,
+                          owed: {} as Record<string, number>,
+                        };
+                      }
+                      const cat = categories[exp.category]!;
+                      cat.total = (cat.total || 0) + exp.amountSats;
+                      cat.expenses.push(exp);
+
+                      // record paid
+                      cat.paid[exp.paidByPlayerId] = (cat.paid[exp.paidByPlayerId] || 0) + exp.amountSats;
+
+                      // compute owed per expense
+                      if (exp.splitMode === 'percentage' && exp.customSplits) {
+                        exp.customSplits.forEach(s => {
+                          cat.owed[s.playerId] = (cat.owed[s.playerId] || 0) + Math.round(exp.amountSats * s.value / 100);
+                        });
+                      } else if (exp.splitMode === 'fixed' && exp.customSplits) {
+                        exp.customSplits.forEach(s => {
+                          cat.owed[s.playerId] = (cat.owed[s.playerId] || 0) + Math.round(s.value);
+                        });
+                      } else {
+                        const splitCount = exp.splitBetweenPlayerIds.length || 1;
+                        const per = Math.round(exp.amountSats / splitCount);
+                        exp.splitBetweenPlayerIds.forEach(pid => {
+                          cat.owed[pid] = (cat.owed[pid] || 0) + per;
+                        });
+                      }
+                    });
+
+                    // Render categories sorted by total desc
+                    const sorted = Object.entries(categories).sort((a, b) => b[1].total - a[1].total);
+
+                    return sorted.map(([catKey, data]) => {
+                      const total: number = data.total;
+                      return (
+                        <Card key={catKey}>
+                          <CardContent className="p-3">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <span>{EXPENSE_CATEGORY_ICONS[catKey as ExpenseCategory]}</span>
+                                <div>
+                                  <div className="font-medium">{EXPENSE_CATEGORY_LABELS[catKey as ExpenseCategory]}</div>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <div className="font-mono font-bold">{total.toLocaleString()} sats</div>
+                                <div className="text-xs text-muted-foreground">≈ {formatCurrency(convertFromSats(total, displayCurrency), displayCurrency)}</div>
+                              </div>
+                            </div>
+
+                            <div className="mt-3 space-y-2">
+                              {data.expenses.map((e: Expense) => {
+                                const payerName = players.find((p) => p.playerId === e.paidByPlayerId)?.name || '—';
+                                return (
+                                  <div key={e.id} className="space-y-1">
+                                    <div className="flex items-center justify-between text-sm">
+                                      <div className="min-w-0">
+                                        <div className="font-medium truncate">{e.description || EXPENSE_CATEGORY_LABELS[e.category]}</div>
+                                      </div>
+                                      <div className="text-right ml-4 whitespace-nowrap">
+                                        <div className="font-mono">{e.amountSats.toLocaleString()} sats</div>
+                                      </div>
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">Paid by {payerName}</div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            <div className="mt-3">
+                              <div className="text-xs text-muted-foreground mb-1">Split</div>
+                              <div className="space-y-2">
+                                {
+                                  // Build ordered list of player owed amounts
+                                  (() => {
+                                    const owedList = players.map((p, idx) => ({
+                                      playerId: p.playerId,
+                                      name: p.name,
+                                      owed: data.owed[p.playerId] || 0,
+                                      color: PLAYER_COLORS[idx % PLAYER_COLORS.length],
+                                    }));
+
+                                    const sum = owedList.reduce((s, it) => s + it.owed, 0) || total || 1;
+
+                                    // Only show the bar if there is any owed amount
+                                    return (
+                                      <div className="space-y-2">
+                                        <div className="w-full h-3 rounded overflow-hidden bg-slate-100 flex">
+                                          {owedList.map((it) => {
+                                            const w = Math.max(0, Math.round((it.owed / sum) * 100));
+                                            return w > 0 ? (
+                                              <div
+                                                key={it.playerId}
+                                                title={`${it.name}: ${it.owed.toLocaleString()} sats`}
+                                                style={{ width: `${w}%`, backgroundColor: it.color }}
+                                              />
+                                            ) : null;
+                                          })}
+                                        </div>
+
+                                        <div className="flex flex-wrap gap-3 items-center text-xs">
+                                          {owedList.map(it => (
+                                            <div key={it.playerId} className="flex items-center gap-2">
+                                              <span className="inline-block w-3 h-3 rounded" style={{ backgroundColor: it.color }} />
+                                              <span className="truncate" style={{ maxWidth: 120 }}>{it.name}</span>
+                                              <span className="font-mono text-muted-foreground ml-1">{it.owed.toLocaleString()} sats</span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    );
+                                  })()
+                                }
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    });
+                  })()}
                 </div>
 
                 {/* Settlements */}
@@ -554,10 +720,15 @@ export const CostSplitDialog: React.FC<CostSplitDialogProps> = ({
                           <span className="font-medium">{settlement.toPlayerName}</span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="font-mono font-bold">
-                            {settlement.amountSats.toLocaleString()} sats
-                          </span>
-                          <Button size="sm" className="bg-yellow-500 hover:bg-yellow-600 text-black">
+                          <div className="text-right">
+                            <div className="font-mono font-bold">{settlement.amountSats.toLocaleString()} sats</div>
+                            <div className="text-xs text-muted-foreground">≈ {formatCurrency(convertFromSats(settlement.amountSats, displayCurrency), displayCurrency)}</div>
+                          </div>
+                          <Button 
+                            size="sm" 
+                            className="bg-yellow-500 hover:bg-yellow-600 text-black"
+                            onClick={() => handleOpenPaymentDialog(settlement)}
+                          >
                             <Zap className="h-3 w-3 mr-1" />
                             Pay
                           </Button>
@@ -570,7 +741,7 @@ export const CostSplitDialog: React.FC<CostSplitDialogProps> = ({
                 {/* Exchange Rate Info */}
                 <div className="flex items-center justify-between text-xs text-muted-foreground p-2 bg-muted rounded-md">
                   <span>
-                    1 BTC ≈ ${rates?.btcToUsd.toLocaleString() || '...'} USD
+                    1 {displayCurrency} ≈ {convertToSats(1, displayCurrency).toLocaleString()} sats
                   </span>
                   <Button
                     variant="ghost"
@@ -589,6 +760,17 @@ export const CostSplitDialog: React.FC<CostSplitDialogProps> = ({
         </Tabs>
       </DialogContent>
     </Dialog>
+
+    {/* Expense Payment Dialog */}
+    {selectedSettlement && (
+      <ExpensePaymentDialog
+        open={paymentDialogOpen}
+        onOpenChange={setPaymentDialogOpen}
+        settlement={selectedSettlement}
+        onPaymentSuccess={handlePaymentSuccess}
+      />
+    )}
+    </>
   );
 };
 

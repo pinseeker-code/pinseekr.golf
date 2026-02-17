@@ -105,7 +105,7 @@ describe('Scoring Engine - Wager Processing', () => {
       // Alice should get paid for 3 skins
       const alicePayments = result.ledger.filter(p => p.to === 'alice');
       expect(alicePayments).toHaveLength(1); // One payment from bob
-      expect(alicePayments[0].amount).toBe(3000); // 3 skins × 1000 sats
+      expect(alicePayments[0]!.amount).toBe(3000); // 3 skins × 1000 sats
     });
 
     it('should handle carry cap', () => {
@@ -161,9 +161,9 @@ describe('Scoring Engine - Wager Processing', () => {
   describe('Full Round Processing', () => {
     it('should process multiple game types and net settlements', () => {
       const players: PlayerInRound[] = [
-        { playerId: 'alice', name: 'Alice', handicap: 10, scores: mockScoreData.alice.scores, total: 72, netTotal: 67 },
-        { playerId: 'bob', name: 'Bob', handicap: 18, scores: mockScoreData.bob.scores, total: 90, netTotal: 72 },
-        { playerId: 'charlie', name: 'Charlie', handicap: 2, scores: mockScoreData.charlie.scores, total: 62, netTotal: 60 }
+        { playerId: 'alice', name: 'Alice', handicap: 10, scores: mockScoreData.alice!.scores, total: 72, netTotal: 67 },
+        { playerId: 'bob', name: 'Bob', handicap: 18, scores: mockScoreData.bob!.scores, total: 90, netTotal: 72 },
+        { playerId: 'charlie', name: 'Charlie', handicap: 2, scores: mockScoreData.charlie!.scores, total: 62, netTotal: 60 }
       ];
       
       const gameConfigs = {

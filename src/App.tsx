@@ -26,7 +26,7 @@ const queryClient = new QueryClient({
     queries: {
       refetchOnWindowFocus: false,
       staleTime: 60000, // 1 minute
-      gcTime: Infinity,
+      gcTime: 1000 * 60 * 60, // 1 hour - prevent unbounded cache growth
     },
   },
 });
@@ -38,7 +38,9 @@ const defaultConfig: AppConfig = {
 
 const presetRelays = [
   { url: 'wss://relay.pinseekr.golf', name: 'Pinseekr (Primary)' },
-  { url: 'wss://relay.primal.net', name: 'Primal (Fallback)' },
+  { url: 'wss://relay.primal.net', name: 'Primal' },
+  { url: 'wss://relay.damus.io', name: 'Damus' },
+  { url: 'wss://nos.lol', name: 'nos.lol' },
 ];
 
 // Initialize Bitcoin Connect

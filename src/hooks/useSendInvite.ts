@@ -46,11 +46,6 @@ export function useSendInvite() {
         return null;
       }
 
-      // Skip if trying to invite yourself
-      if (recipientPubkey === user.pubkey) {
-        return null;
-      }
-
       try {
         const joinUrl = `${window.location.origin}/join/${joinCode}`;
         

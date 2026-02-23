@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,17 +31,17 @@ import {
   UserPlus,
   MessageCircle,
   MoreHorizontal,
-  Star,
   Flag,
   BarChart2,
   Settings,
   CheckCircle2,
   Ban,
+  ListChecks,
+  X,
 } from 'lucide-react';
-import { BadgeDisplay } from './BadgeDisplay';
-import { StatsCard } from './StatsCard';
 import { EditGolfProfile } from './EditGolfProfile';
 import { EditProfileForm } from '@/components/EditProfileForm';
+import { StatsCard } from './StatsCard';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useUserBadges, useBadgeStats } from '@/hooks/useUserBadges';
 import { useRoundHistory } from '@/hooks/useRoundHistory';
@@ -107,7 +108,7 @@ const ProfileHeader = ({
   );
 };
 
-// ─── Achievements Tab ─────────────────────────────────────────────────────────
+// ─── Badges section (shown at bottom of Stats tab) ───────────────────────────
 
 const rarityColor: Record<string, string> = {
   legendary: 'bg-yellow-100 text-yellow-800 border-yellow-300',
@@ -116,41 +117,31 @@ const rarityColor: Record<string, string> = {
   common: 'bg-gray-100 text-gray-700 border-gray-300',
 };
 
-const AchievementsTab = ({ pubkey }: { pubkey: string }) => {
+const BadgesSection = ({ pubkey }: { pubkey: string }) => {
   const { data: badges, isLoading } = useUserBadges(pubkey);
   const stats = useBadgeStats(pubkey);
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {Array.from({ length: 4 }).map((_, i) => (
-          <Skeleton key={i} className="h-20 rounded-lg" />
+          <Skeleton key={i} className="h-16 rounded-lg" />
         ))}
       </div>
     );
   }
 
-  if (!badges || badges.length === 0) {
-    return (
-      <div className="text-center py-12 text-muted-foreground">
-        <Star className="h-10 w-10 mx-auto mb-3 opacity-30" />
-        <p className="font-medium">No badges yet</p>
-        <p className="text-sm mt-1">Play rounds to earn achievements</p>
-      </div>
-    );
-  }
+  if (!badges || badges.length === 0) return null;
 
   return (
-    <div className="space-y-4">
-      {/* Rarity summary */}
+    <div className="space-y-3">
+      <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Badges</h3>
       <div className="flex flex-wrap gap-2">
         {stats.legendary > 0 && <Badge variant="outline" className={rarityColor.legendary}>⭐ {stats.legendary} Legendary</Badge>}
         {stats.epic > 0 && <Badge variant="outline" className={rarityColor.epic}>💎 {stats.epic} Epic</Badge>}
         {stats.rare > 0 && <Badge variant="outline" className={rarityColor.rare}>🔷 {stats.rare} Rare</Badge>}
         {stats.common > 0 && <Badge variant="outline" className={rarityColor.common}>🏅 {stats.common} Common</Badge>}
       </div>
-
-      {/* Badge grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {badges.map((badge) => {
           const rarity = (badge.metadata.rarity as string) ?? 'common';
@@ -185,8 +176,10 @@ const RoundsTab = ({ pubkey, isOwn }: { pubkey: string; isOwn?: boolean }) => {
   const { data: rounds, isLoading } = useRoundHistory(pubkey);
   const { endRound, cancelRound, isEnding, isCancelling } = useRoundMutations();
   const [showCancelled, setShowCancelled] = useState(false);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [pendingAction, setPendingAction] = useState<{
-    round: RoundHistoryItem;
+    rounds: RoundHistoryItem[];
     type: 'end' | 'cancel';
   } | null>(null);
 
@@ -205,29 +198,112 @@ const RoundsTab = ({ pubkey, isOwn }: { pubkey: string; isOwn?: boolean }) => {
     isOwn && !showCancelled
       ? allRounds.filter((r) => r.status !== 'cancelled')
       : allRounds;
+  const activeVisible = visibleRounds.filter((r) => r.status === 'active');
+  const selectedRounds = visibleRounds.filter((r) => selectedIds.has(r.roundId));
+  const allActiveSelected = activeVisible.length > 0 && activeVisible.every((r) => selectedIds.has(r.roundId));
+
+  const toggleSelect = (roundId: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(roundId)) next.delete(roundId);
+      else next.add(roundId);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (allActiveSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(activeVisible.map((r) => r.roundId)));
+    }
+  };
+
+  const exitSelectMode = () => {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+  };
 
   const handleConfirm = async () => {
     if (!pendingAction) return;
-    const { round, type } = pendingAction;
+    const { rounds: targets, type } = pendingAction;
     setPendingAction(null);
-    if (type === 'end') {
-      await endRound({ round, ownerPubkey: pubkey });
-    } else {
-      await cancelRound({ round, ownerPubkey: pubkey });
+    exitSelectMode();
+    for (const round of targets) {
+      if (type === 'end') {
+        await endRound({ round, ownerPubkey: pubkey });
+      } else {
+        await cancelRound({ round, ownerPubkey: pubkey });
+      }
     }
   };
 
   return (
     <>
-      {isOwn && allRounds.some((r) => r.status === 'cancelled') && (
-        <div className="flex justify-end mb-2">
+      {/* Toolbar */}
+      {isOwn && (
+        <div className="flex items-center justify-between mb-2 gap-2">
+          <div className="flex items-center gap-2">
+            {selectMode && activeVisible.length > 0 && (
+              <div className="flex items-center gap-1.5">
+                <Checkbox
+                  id="select-all"
+                  checked={allActiveSelected}
+                  onCheckedChange={toggleSelectAll}
+                />
+                <label htmlFor="select-all" className="text-xs text-muted-foreground cursor-pointer select-none">
+                  {allActiveSelected ? 'Deselect all' : 'Select all active'}
+                </label>
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {allRounds.some((r) => r.status === 'cancelled') && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs text-muted-foreground"
+                onClick={() => setShowCancelled((s) => !s)}
+              >
+                {showCancelled ? 'Hide cancelled' : 'Show cancelled'}
+              </Button>
+            )}
+            <Button
+              variant={selectMode ? 'secondary' : 'ghost'}
+              size="sm"
+              className="text-xs gap-1.5"
+              onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
+            >
+              {selectMode ? <X className="h-3.5 w-3.5" /> : <ListChecks className="h-3.5 w-3.5" />}
+              {selectMode ? 'Cancel' : 'Select'}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk action bar */}
+      {selectMode && selectedIds.size > 0 && (
+        <div className="flex items-center gap-2 mb-3 p-2 rounded-lg bg-muted border">
+          <span className="text-sm font-medium flex-1">{selectedIds.size} selected</span>
           <Button
-            variant="ghost"
             size="sm"
-            className="text-xs text-muted-foreground"
-            onClick={() => setShowCancelled((s) => !s)}
+            variant="outline"
+            className="gap-1.5 text-green-700 border-green-400 hover:bg-green-50"
+            onClick={() => setPendingAction({ rounds: selectedRounds, type: 'end' })}
+            disabled={isEnding || isCancelling}
           >
-            {showCancelled ? 'Hide cancelled' : 'Show cancelled'}
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            Complete
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5 text-destructive border-destructive/40 hover:bg-destructive/10"
+            onClick={() => setPendingAction({ rounds: selectedRounds, type: 'cancel' })}
+            disabled={isEnding || isCancelling}
+          >
+            <Ban className="h-3.5 w-3.5" />
+            Cancel
           </Button>
         </div>
       )}
@@ -240,79 +316,135 @@ const RoundsTab = ({ pubkey, isOwn }: { pubkey: string; isOwn?: boolean }) => {
         </div>
       ) : (
         <div className="space-y-3">
-          {visibleRounds.map((round) => (
-            <Card
-              key={round.roundId}
-              className={`hover:bg-muted/50 transition-colors ${
-                round.status === 'cancelled' ? 'opacity-60' : ''
-              }`}
-            >
-              <CardContent className="py-3 px-4">
-                <div className="flex items-center gap-2">
-                  <Link
-                    to={`/round/${round.roundId}`}
-                    className="flex items-center gap-3 flex-1 min-w-0"
-                  >
-                    <Flag className="h-5 w-5 text-green-600 shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium text-sm truncate">{round.courseName}</div>
-                      <div className="text-xs text-muted-foreground flex gap-2 flex-wrap">
-                        <span>{new Date(round.date).toLocaleDateString()}</span>
-                        <span>·</span>
-                        <span className="capitalize">{round.gameMode.replace(/-/g, ' ')}</span>
-                        <span>·</span>
-                        <span>{round.playerCount} players</span>
-                      </div>
-                    </div>
-                    <div className="text-right shrink-0 mr-1">
-                      {round.topGross != null && (
-                        <div className="text-sm font-semibold">{round.topGross}</div>
-                      )}
-                      <Badge
-                        variant="outline"
-                        className={`text-xs capitalize ${
-                          round.status === 'completed'
-                            ? 'border-green-400 text-green-700'
-                            : round.status === 'cancelled'
-                              ? 'border-red-300 text-red-600'
-                              : 'border-yellow-400 text-yellow-700'
-                        }`}
-                      >
-                        {round.status}
-                      </Badge>
-                    </div>
-                  </Link>
+          {visibleRounds.map((round) => {
+            const isSelected = selectedIds.has(round.roundId);
+            const isActive = round.status === 'active';
+            return (
+              <Card
+                key={round.roundId}
+                className={`transition-colors ${
+                  round.status === 'cancelled' ? 'opacity-60' : ''
+                } ${
+                  isSelected ? 'ring-2 ring-primary bg-primary/5' : 'hover:bg-muted/50'
+                }`}
+              >
+                <CardContent className="py-3 px-4">
+                  <div className="flex items-center gap-2">
+                    {/* Checkbox in select mode (active rounds only) */}
+                    {selectMode && isActive && (
+                      <Checkbox
+                        checked={isSelected}
+                        onCheckedChange={() => toggleSelect(round.roundId)}
+                        className="shrink-0"
+                      />
+                    )}
+                    {selectMode && !isActive && (
+                      <div className="w-4 shrink-0" />
+                    )}
 
-                  {isOwn && round.status === 'active' && (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onClick={() => setPendingAction({ round, type: 'end' })}
-                          className="gap-2"
-                        >
-                          <CheckCircle2 className="h-4 w-4 text-green-600" />
-                          Mark as Completed
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          onClick={() => setPendingAction({ round, type: 'cancel' })}
-                          className="gap-2 text-destructive focus:text-destructive"
-                        >
-                          <Ban className="h-4 w-4" />
-                          Cancel Round
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                    {/* Card body — link or div depending on select mode */}
+                    {selectMode ? (
+                      <div
+                        className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"
+                        onClick={() => isActive && toggleSelect(round.roundId)}
+                      >
+                        <Flag className="h-5 w-5 text-green-600 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-sm truncate">{round.courseName}</div>
+                          <div className="text-xs text-muted-foreground flex gap-2 flex-wrap">
+                            <span>{new Date(round.date).toLocaleDateString()}</span>
+                            <span>·</span>
+                            <span className="capitalize">{round.gameMode.replace(/-/g, ' ')}</span>
+                            <span>·</span>
+                            <span>{round.playerCount} players</span>
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0 mr-1">
+                          {round.topGross != null && (
+                            <div className="text-sm font-semibold">{round.topGross}</div>
+                          )}
+                          <Badge
+                            variant="outline"
+                            className={`text-xs capitalize ${
+                              round.status === 'completed'
+                                ? 'border-green-400 text-green-700'
+                                : round.status === 'cancelled'
+                                  ? 'border-red-300 text-red-600'
+                                  : 'border-yellow-400 text-yellow-700'
+                            }`}
+                          >
+                            {round.status}
+                          </Badge>
+                        </div>
+                      </div>
+                    ) : (
+                      <Link
+                        to={`/round/${round.roundId}`}
+                        className="flex items-center gap-3 flex-1 min-w-0"
+                      >
+                        <Flag className="h-5 w-5 text-green-600 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-sm truncate">{round.courseName}</div>
+                          <div className="text-xs text-muted-foreground flex gap-2 flex-wrap">
+                            <span>{new Date(round.date).toLocaleDateString()}</span>
+                            <span>·</span>
+                            <span className="capitalize">{round.gameMode.replace(/-/g, ' ')}</span>
+                            <span>·</span>
+                            <span>{round.playerCount} players</span>
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0 mr-1">
+                          {round.topGross != null && (
+                            <div className="text-sm font-semibold">{round.topGross}</div>
+                          )}
+                          <Badge
+                            variant="outline"
+                            className={`text-xs capitalize ${
+                              round.status === 'completed'
+                                ? 'border-green-400 text-green-700'
+                                : round.status === 'cancelled'
+                                  ? 'border-red-300 text-red-600'
+                                  : 'border-yellow-400 text-yellow-700'
+                            }`}
+                          >
+                            {round.status}
+                          </Badge>
+                        </div>
+                      </Link>
+                    )}
+
+                    {/* Per-item action menu (not in select mode) */}
+                    {!selectMode && isOwn && isActive && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => setPendingAction({ rounds: [round], type: 'end' })}
+                            className="gap-2"
+                          >
+                            <CheckCircle2 className="h-4 w-4 text-green-600" />
+                            Mark as Completed
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => setPendingAction({ rounds: [round], type: 'cancel' })}
+                            className="gap-2 text-destructive focus:text-destructive"
+                          >
+                            <Ban className="h-4 w-4" />
+                            Cancel Round
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
 
@@ -320,12 +452,14 @@ const RoundsTab = ({ pubkey, isOwn }: { pubkey: string; isOwn?: boolean }) => {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {pendingAction?.type === 'end' ? 'Mark round as completed?' : 'Cancel this round?'}
+              {pendingAction?.type === 'end'
+                ? `Mark ${(pendingAction?.rounds.length ?? 0) > 1 ? `${pendingAction?.rounds.length} rounds` : 'round'} as completed?`
+                : `Cancel ${(pendingAction?.rounds.length ?? 0) > 1 ? `${pendingAction?.rounds.length} rounds` : 'this round'}?`}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {pendingAction?.type === 'end'
-                ? 'This will mark the round as completed. You can still view it in your history.'
-                : 'This will cancel the round. It will be hidden from your history by default.'}
+                ? 'This will publish updated Nostr events marking each round as completed.'
+                : 'This will publish updated Nostr events marking each round as cancelled. They will be hidden by default.'}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -335,7 +469,7 @@ const RoundsTab = ({ pubkey, isOwn }: { pubkey: string; isOwn?: boolean }) => {
               disabled={isEnding || isCancelling}
               className={pendingAction?.type === 'cancel' ? 'bg-destructive hover:bg-destructive/90' : ''}
             >
-              {pendingAction?.type === 'end' ? 'Mark Completed' : 'Cancel Round'}
+              {pendingAction?.type === 'end' ? 'Mark Completed' : 'Cancel Round(s)'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -392,14 +526,10 @@ export function GolfProfile({ profile, metadata, isOwn, className }: GolfProfile
       )}
 
       <Tabs defaultValue="stats" className="w-full">
-        <TabsList className={`grid w-full ${actualIsOwn ? 'grid-cols-4' : 'grid-cols-3'}`}>
+        <TabsList className={`grid w-full ${actualIsOwn ? 'grid-cols-3' : 'grid-cols-2'}`}>
           <TabsTrigger value="stats" className="gap-1.5">
             <BarChart2 className="h-4 w-4" />
             <span className="hidden sm:inline">Stats</span>
-          </TabsTrigger>
-          <TabsTrigger value="achievements" className="gap-1.5">
-            <Star className="h-4 w-4" />
-            <span className="hidden sm:inline">Achievements</span>
           </TabsTrigger>
           <TabsTrigger value="rounds" className="gap-1.5">
             <Flag className="h-4 w-4" />
@@ -413,13 +543,9 @@ export function GolfProfile({ profile, metadata, isOwn, className }: GolfProfile
           )}
         </TabsList>
 
-        <TabsContent value="stats" className="mt-4 space-y-4">
+        <TabsContent value="stats" className="mt-4 space-y-6">
           <StatsCard profile={profile} />
-          <BadgeDisplay badges={profile.badges} showAll={false} maxDisplay={6} />
-        </TabsContent>
-
-        <TabsContent value="achievements" className="mt-4">
-          <AchievementsTab pubkey={profile.pubkey} />
+          <BadgesSection pubkey={profile.pubkey} />
         </TabsContent>
 
         <TabsContent value="rounds" className="mt-4">

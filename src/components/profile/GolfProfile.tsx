@@ -8,7 +8,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Link } from 'react-router-dom';
 import {
   MapPin,
-  Calendar,
   Trophy,
   UserPlus,
   MessageCircle,
@@ -16,6 +15,7 @@ import {
   Star,
   Flag,
   BarChart2,
+  Settings,
 } from 'lucide-react';
 import { BadgeDisplay } from './BadgeDisplay';
 import { StatsCard } from './StatsCard';
@@ -76,41 +76,8 @@ const ProfileHeader = ({
                     <span>Home: {profile.homeCourse}</span>
                   </div>
                 )}
-                <div className="flex items-center gap-1">
-                  <Calendar className="h-4 w-4" />
-                  <span>Joined {new Date(profile.joinedAt * 1000).toLocaleDateString()}</span>
-                </div>
               </div>
             </div>
-          </div>
-        </div>
-
-        {/* Stat pill row */}
-        <div className="flex flex-wrap gap-6 mt-5 pt-4 border-t">
-          <div className="text-center">
-            <div className="text-2xl font-bold text-blue-600">{profile.handicap}</div>
-            <div className="text-xs text-muted-foreground">Handicap</div>
-          </div>
-          <Separator orientation="vertical" className="h-10 hidden sm:block" />
-          <div className="text-center">
-            <div className="text-2xl font-bold">{profile.socialStats.roundsWithFriends}</div>
-            <div className="text-xs text-muted-foreground">Rounds</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-green-600">{profile.socialStats.matchesWon}</div>
-            <div className="text-xs text-muted-foreground">Wins</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-red-600">{profile.socialStats.matchesLost}</div>
-            <div className="text-xs text-muted-foreground">Losses</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold">{profile.socialStats.followers}</div>
-            <div className="text-xs text-muted-foreground">Followers</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold">{profile.socialStats.following}</div>
-            <div className="text-xs text-muted-foreground">Following</div>
           </div>
         </div>
       </CardContent>
@@ -263,16 +230,16 @@ const SettingsTab = ({ profile }: { profile: GolfProfileType }) => (
   <div className="space-y-8">
     <div>
       <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-4">
-        Nostr Profile
+        Golf Profile &amp; Preferences
       </h3>
-      <EditProfileForm />
+      <EditGolfProfile profile={profile} />
     </div>
     <Separator />
     <div>
       <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-4">
-        Golf Profile &amp; Preferences
+        Nostr Profile
       </h3>
-      <EditGolfProfile profile={profile} />
+      <EditProfileForm />
     </div>
   </div>
 );
@@ -320,7 +287,7 @@ export function GolfProfile({ profile, metadata, isOwn, className }: GolfProfile
           </TabsTrigger>
           {actualIsOwn && (
             <TabsTrigger value="settings" className="gap-1.5">
-              <Trophy className="h-4 w-4" />
+              <Settings className="h-4 w-4" />
               <span className="hidden sm:inline">Settings</span>
             </TabsTrigger>
           )}

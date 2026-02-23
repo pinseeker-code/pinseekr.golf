@@ -49,6 +49,7 @@ function makeDefaultProfile(pubkey: string, metadata?: NostrMetadata): GolfProfi
       privacyLevel: 'public',
       shareScores: true,
       shareAchievements: true,
+      shareZapsWagers: false,
       favoriteCourses: [],
     },
     socialStats: {

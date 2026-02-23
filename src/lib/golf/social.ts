@@ -59,6 +59,7 @@ export interface GolfProfile {
     privacyLevel: 'public' | 'friends' | 'private';
     shareScores: boolean;
     shareAchievements: boolean;
+    shareZapsWagers: boolean;
     favoriteCourses?: string[];
   };
   socialStats: {

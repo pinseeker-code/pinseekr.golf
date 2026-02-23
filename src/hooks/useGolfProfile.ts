@@ -59,6 +59,7 @@ const createDefaultProfile = (pubkey: string, name?: string): GolfProfile => ({
     privacyLevel: 'public',
     shareScores: true,
     shareAchievements: true,
+    shareZapsWagers: false,
   },
   socialStats: {
     followers: 0,
@@ -90,6 +91,31 @@ const parseGolfProfileFromEvent = (event: GolfProfileEvent): GolfProfile | null 
       const tag = event.tags.find(tag => tag[0] === 'favorite_courses')?.[1];
       return tag ? JSON.parse(tag) as string[] : [];
     };
+    const getPreferences = () => {
+      const tag = event.tags.find(t => t[0] === 'preferences')?.[1];
+      if (tag) {
+        const raw = JSON.parse(tag) as Record<string, unknown>;
+        return {
+          preferredTees: (raw.preferredTees as string) || 'white',
+          favoriteFormat: (raw.favoriteFormat as string) || 'stroke-play',
+          privacyLevel: ((raw.privacyLevel as string) || 'public') as 'public' | 'friends' | 'private',
+          shareScores: typeof raw.shareScores === 'boolean' ? raw.shareScores : true,
+          shareAchievements: typeof raw.shareAchievements === 'boolean' ? raw.shareAchievements : true,
+          shareZapsWagers: typeof raw.shareZapsWagers === 'boolean' ? raw.shareZapsWagers : false,
+          favoriteCourses: Array.isArray(raw.favoriteCourses) ? raw.favoriteCourses as string[] : [],
+        };
+      }
+      // Legacy fallback: only favorite_courses was saved as a separate tag
+      return {
+        preferredTees: 'white',
+        favoriteFormat: 'stroke-play',
+        privacyLevel: 'public' as const,
+        shareScores: true,
+        shareAchievements: true,
+        shareZapsWagers: false,
+        favoriteCourses: getFavoriteCourses(),
+      };
+    };
 
     const profile: GolfProfile = {
       pubkey: event.pubkey,
@@ -100,14 +126,7 @@ const parseGolfProfileFromEvent = (event: GolfProfileEvent): GolfProfile | null 
       stats: getStats(),
       badges: getBadges(),
       achievements: getAchievements(),
-      preferences: {
-        preferredTees: 'white',
-        favoriteFormat: 'stroke-play',
-        privacyLevel: 'public',
-        shareScores: true,
-        shareAchievements: true,
-        favoriteCourses: getFavoriteCourses(),
-      },
+      preferences: getPreferences(),
       socialStats: {
         followers: 0,
         following: 0,
@@ -226,6 +245,7 @@ export function useGolfProfileMutation() {
           ['badges', JSON.stringify(profile.badges)],
           ['achievements', JSON.stringify(profile.achievements)],
           ['favorite_courses', JSON.stringify(profile.preferences.favoriteCourses || [])],
+          ['preferences', JSON.stringify(profile.preferences)],
           ['t', 'golf'],
           ['t', SUBTYPES.PROFILE],
         ],
@@ -264,6 +284,7 @@ export function useGolfProfileMutation() {
           ['badges', JSON.stringify(updatedProfile.badges)],
           ['achievements', JSON.stringify(updatedProfile.achievements)],
           ['favorite_courses', JSON.stringify(updatedProfile.preferences.favoriteCourses || [])],
+          ['preferences', JSON.stringify(updatedProfile.preferences)],
           ['t', 'golf'],
           ['t', SUBTYPES.PROFILE],
         ],

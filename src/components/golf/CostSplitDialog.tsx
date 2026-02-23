@@ -42,6 +42,7 @@ import {
 } from '@/lib/golf/expenseTypes';
 import { useExchangeRate } from '@/hooks/useExchangeRate';
 import { useNostrPublish } from '@/hooks/useNostrPublish';
+import { useToast } from '@/hooks/useToast';
 import { createExpenseEvent } from '@/lib/golf/nostrEvents';
 import { ExpensePaymentDialog } from '@/components/golf/ExpensePaymentDialog';
 
@@ -66,6 +67,7 @@ export const CostSplitDialog: React.FC<CostSplitDialogProps> = ({
 }) => {
   const { convertToSats, convertFromSats, formatCurrency, loading: ratesLoading, refresh } = useExchangeRate();
   const { mutate: publishEvent } = useNostrPublish();
+  const { toast } = useToast();
   
   const [activeTab, setActiveTab] = useState<'add' | 'summary'>('add');
   const [displayCurrency, setDisplayCurrency] = useState<Currency>('USD');
@@ -174,7 +176,16 @@ export const CostSplitDialog: React.FC<CostSplitDialogProps> = ({
     // Publish expense to Nostr if roundId is provided
     if (roundId) {
       const expenseEvent = createExpenseEvent(expense, roundId);
-      publishEvent(expenseEvent);
+      publishEvent(expenseEvent, {
+        onSuccess: () => {
+          toast({ title: 'Expense saved', description: `${expense.description} added and synced.` });
+        },
+        onError: () => {
+          toast({ title: 'Expense added locally', description: 'Could not sync to Nostr — will retry when online.', variant: 'destructive' });
+        },
+      });
+    } else {
+      toast({ title: 'Expense added', description: expense.description });
     }
 
     // Reset form

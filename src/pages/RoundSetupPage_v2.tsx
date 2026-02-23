@@ -1182,7 +1182,7 @@ export const RoundSetupPage: React.FC = () => {
         });
       } catch (err) {
         console.error('Error publishing tournament wagers', err);
-        toast({ title: 'Error', description: 'Could not publish wagers.', variant: 'destructive' });
+        toast({ title: 'Wager publish failed', description: 'Could not sync wagers to the relay. The tournament was still created locally.', variant: 'destructive' });
       }
     }
     toast({
@@ -1778,7 +1778,7 @@ export const RoundSetupPage: React.FC = () => {
                                 toast({ title: 'Joined', description: 'You have joined the round.' });
                               } catch (err) {
                                 console.error('Auto-join failed', err);
-                                toast({ title: 'Error', description: 'Failed to join the round', variant: 'destructive' });
+                                toast({ title: 'Join failed', description: (err as Error)?.message || 'Could not join this round. Check your relay connection and try again.', variant: 'destructive' });
                               }
                             }}
                             variant="default"

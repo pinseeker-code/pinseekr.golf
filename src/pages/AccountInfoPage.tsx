@@ -41,7 +41,7 @@ export function AccountInfoPage() {
   const handleExportKeys = async () => {
     if (!isEmailUser || !emailUserData) {
       toast({
-        title: "Error",
+        title: "Not available",
         description: "Key export is only available for email accounts.",
         variant: "destructive",
       });

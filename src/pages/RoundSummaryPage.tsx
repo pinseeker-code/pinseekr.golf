@@ -4,6 +4,7 @@ import { Layout } from '@/components/Layout';
 import MobileContainer from '@/components/MobileContainer';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { ArrowLeft } from 'lucide-react';
 import { calculatePlayerStats } from '@/lib/golf/statsCalculator';
 import { useNostr } from '@nostrify/react';
@@ -189,7 +190,26 @@ export const RoundSummaryPage: React.FC = () => {
 
             {/* Player Stats Cards */}
             {isLoading && (
-              <div className="text-center text-sm text-muted-foreground">Loading round...</div>
+              <div className="space-y-4">
+                {[1, 2, 3].map((i) => (
+                  <Card key={i} className="border-0 shadow-lg">
+                    <CardHeader className="rounded-t-lg py-4 bg-muted">
+                      <div className="flex items-center gap-3">
+                        <Skeleton className="h-12 w-12 rounded-full" />
+                        <div className="space-y-2">
+                          <Skeleton className="h-5 w-36" />
+                          <Skeleton className="h-4 w-48" />
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="pt-6 space-y-3">
+                      <Skeleton className="h-4 w-full" />
+                      <Skeleton className="h-4 w-3/4" />
+                      <Skeleton className="h-4 w-1/2" />
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
             )}
 
             {!isLoading && loadError && (

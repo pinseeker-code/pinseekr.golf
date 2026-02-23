@@ -1,4 +1,22 @@
+import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
@@ -16,6 +34,8 @@ import {
   Flag,
   BarChart2,
   Settings,
+  CheckCircle2,
+  Ban,
 } from 'lucide-react';
 import { BadgeDisplay } from './BadgeDisplay';
 import { StatsCard } from './StatsCard';
@@ -24,6 +44,8 @@ import { EditProfileForm } from '@/components/EditProfileForm';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useUserBadges, useBadgeStats } from '@/hooks/useUserBadges';
 import { useRoundHistory } from '@/hooks/useRoundHistory';
+import type { RoundHistoryItem } from '@/hooks/useRoundHistory';
+import { useRoundMutations } from '@/hooks/useRoundMutations';
 import type { GolfProfile as GolfProfileType } from '@/lib/golf/social';
 import type { NostrMetadata } from '@nostrify/nostrify';
 
@@ -159,8 +181,14 @@ const AchievementsTab = ({ pubkey }: { pubkey: string }) => {
 
 // ─── Rounds Tab ───────────────────────────────────────────────────────────────
 
-const RoundsTab = ({ pubkey }: { pubkey: string }) => {
+const RoundsTab = ({ pubkey, isOwn }: { pubkey: string; isOwn?: boolean }) => {
   const { data: rounds, isLoading } = useRoundHistory(pubkey);
+  const { endRound, cancelRound, isEnding, isCancelling } = useRoundMutations();
+  const [showCancelled, setShowCancelled] = useState(false);
+  const [pendingAction, setPendingAction] = useState<{
+    round: RoundHistoryItem;
+    type: 'end' | 'cancel';
+  } | null>(null);
 
   if (isLoading) {
     return (
@@ -172,55 +200,147 @@ const RoundsTab = ({ pubkey }: { pubkey: string }) => {
     );
   }
 
-  if (!rounds || rounds.length === 0) {
-    return (
-      <div className="text-center py-12 text-muted-foreground">
-        <Flag className="h-10 w-10 mx-auto mb-3 opacity-30" />
-        <p className="font-medium">No rounds recorded yet</p>
-        <p className="text-sm mt-1">Start a round to see your history</p>
-      </div>
-    );
-  }
+  const allRounds = rounds ?? [];
+  const visibleRounds =
+    isOwn && !showCancelled
+      ? allRounds.filter((r) => r.status !== 'cancelled')
+      : allRounds;
+
+  const handleConfirm = async () => {
+    if (!pendingAction) return;
+    const { round, type } = pendingAction;
+    setPendingAction(null);
+    if (type === 'end') {
+      await endRound({ round, ownerPubkey: pubkey });
+    } else {
+      await cancelRound({ round, ownerPubkey: pubkey });
+    }
+  };
 
   return (
-    <div className="space-y-3">
-      {rounds.map((round) => (
-        <Link
-          key={round.roundId}
-          to={`/round/${round.roundId}`}
-          className="block"
-        >
-          <Card className="hover:bg-muted/50 transition-colors cursor-pointer">
-            <CardContent className="py-3 px-4">
-              <div className="flex items-center gap-3">
-                <Flag className="h-5 w-5 text-green-600 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium text-sm truncate">{round.courseName}</div>
-                  <div className="text-xs text-muted-foreground flex gap-2 flex-wrap">
-                    <span>{new Date(round.date).toLocaleDateString()}</span>
-                    <span>·</span>
-                    <span className="capitalize">{round.gameMode.replace(/-/g, ' ')}</span>
-                    <span>·</span>
-                    <span>{round.playerCount} players</span>
-                  </div>
-                </div>
-                <div className="text-right shrink-0">
-                  {round.topGross != null && (
-                    <div className="text-sm font-semibold">{round.topGross}</div>
-                  )}
-                  <Badge
-                    variant="outline"
-                    className={`text-xs capitalize ${round.status === 'completed' ? 'border-green-400 text-green-700' : 'border-yellow-400 text-yellow-700'}`}
+    <>
+      {isOwn && allRounds.some((r) => r.status === 'cancelled') && (
+        <div className="flex justify-end mb-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs text-muted-foreground"
+            onClick={() => setShowCancelled((s) => !s)}
+          >
+            {showCancelled ? 'Hide cancelled' : 'Show cancelled'}
+          </Button>
+        </div>
+      )}
+
+      {visibleRounds.length === 0 ? (
+        <div className="text-center py-12 text-muted-foreground">
+          <Flag className="h-10 w-10 mx-auto mb-3 opacity-30" />
+          <p className="font-medium">No rounds recorded yet</p>
+          <p className="text-sm mt-1">Start a round to see your history</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {visibleRounds.map((round) => (
+            <Card
+              key={round.roundId}
+              className={`hover:bg-muted/50 transition-colors ${
+                round.status === 'cancelled' ? 'opacity-60' : ''
+              }`}
+            >
+              <CardContent className="py-3 px-4">
+                <div className="flex items-center gap-2">
+                  <Link
+                    to={`/round/${round.roundId}`}
+                    className="flex items-center gap-3 flex-1 min-w-0"
                   >
-                    {round.status}
-                  </Badge>
+                    <Flag className="h-5 w-5 text-green-600 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-sm truncate">{round.courseName}</div>
+                      <div className="text-xs text-muted-foreground flex gap-2 flex-wrap">
+                        <span>{new Date(round.date).toLocaleDateString()}</span>
+                        <span>·</span>
+                        <span className="capitalize">{round.gameMode.replace(/-/g, ' ')}</span>
+                        <span>·</span>
+                        <span>{round.playerCount} players</span>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0 mr-1">
+                      {round.topGross != null && (
+                        <div className="text-sm font-semibold">{round.topGross}</div>
+                      )}
+                      <Badge
+                        variant="outline"
+                        className={`text-xs capitalize ${
+                          round.status === 'completed'
+                            ? 'border-green-400 text-green-700'
+                            : round.status === 'cancelled'
+                              ? 'border-red-300 text-red-600'
+                              : 'border-yellow-400 text-yellow-700'
+                        }`}
+                      >
+                        {round.status}
+                      </Badge>
+                    </div>
+                  </Link>
+
+                  {isOwn && round.status === 'active' && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() => setPendingAction({ round, type: 'end' })}
+                          className="gap-2"
+                        >
+                          <CheckCircle2 className="h-4 w-4 text-green-600" />
+                          Mark as Completed
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={() => setPendingAction({ round, type: 'cancel' })}
+                          className="gap-2 text-destructive focus:text-destructive"
+                        >
+                          <Ban className="h-4 w-4" />
+                          Cancel Round
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        </Link>
-      ))}
-    </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <AlertDialog open={!!pendingAction} onOpenChange={(open) => { if (!open) setPendingAction(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pendingAction?.type === 'end' ? 'Mark round as completed?' : 'Cancel this round?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingAction?.type === 'end'
+                ? 'This will mark the round as completed. You can still view it in your history.'
+                : 'This will cancel the round. It will be hidden from your history by default.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Go back</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirm}
+              disabled={isEnding || isCancelling}
+              className={pendingAction?.type === 'cancel' ? 'bg-destructive hover:bg-destructive/90' : ''}
+            >
+              {pendingAction?.type === 'end' ? 'Mark Completed' : 'Cancel Round'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 };
 
@@ -303,7 +423,7 @@ export function GolfProfile({ profile, metadata, isOwn, className }: GolfProfile
         </TabsContent>
 
         <TabsContent value="rounds" className="mt-4">
-          <RoundsTab pubkey={profile.pubkey} />
+          <RoundsTab pubkey={profile.pubkey} isOwn={actualIsOwn} />
         </TabsContent>
 
         {actualIsOwn && (

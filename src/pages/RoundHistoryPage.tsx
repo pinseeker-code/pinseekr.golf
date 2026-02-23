@@ -5,9 +5,28 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useRoundHistory } from '@/hooks/useRoundHistory';
-import { Calendar, Filter, Trophy, Users } from 'lucide-react';
+import type { RoundHistoryItem } from '@/hooks/useRoundHistory';
+import { useRoundMutations } from '@/hooks/useRoundMutations';
+import { Calendar, Filter, Trophy, Users, MoreHorizontal, CheckCircle2, Ban } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -16,6 +35,11 @@ export default function RoundHistoryPage() {
   const navigate = useNavigate();
   const { user } = useCurrentUser();
   const { data: rounds, isLoading } = useRoundHistory(user?.pubkey);
+  const { endRound, cancelRound, isEnding, isCancelling } = useRoundMutations();
+  const [pendingAction, setPendingAction] = useState<{
+    round: RoundHistoryItem;
+    type: 'end' | 'cancel';
+  } | null>(null);
   const [courseFilter, setCourseFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'completed' | 'cancelled'>('all');
   const [startDate, setStartDate] = useState('');
@@ -209,12 +233,40 @@ export default function RoundHistoryPage() {
                           </div>
                         </CardDescription>
                       </div>
-                      <div className="text-right text-xs text-muted-foreground">
-                        <div className="capitalize">{round.gameMode.replace('-', ' ')}</div>
-                        <div className="capitalize">{round.status}</div>
-                        <div className="mt-1">
-                          {round.settlementPublished ? 'Settlement published' : 'Settlement pending'}
+                      <div className="flex items-start gap-2">
+                        <div className="text-right text-xs text-muted-foreground">
+                          <div className="capitalize">{round.gameMode.replace('-', ' ')}</div>
+                          <div className="capitalize">{round.status}</div>
+                          <div className="mt-1">
+                            {round.settlementPublished ? 'Settlement published' : 'Settlement pending'}
+                          </div>
                         </div>
+                        {round.status === 'active' && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={() => setPendingAction({ round, type: 'end' })}
+                                className="gap-2"
+                              >
+                                <CheckCircle2 className="h-4 w-4 text-green-600" />
+                                Mark as Completed
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => setPendingAction({ round, type: 'cancel' })}
+                                className="gap-2 text-destructive focus:text-destructive"
+                              >
+                                <Ban className="h-4 w-4" />
+                                Cancel Round
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
                       </div>
                     </div>
                   </CardHeader>
@@ -241,6 +293,40 @@ export default function RoundHistoryPage() {
           </div>
         )}
       </div>
+
+      <AlertDialog open={!!pendingAction} onOpenChange={(open) => { if (!open) setPendingAction(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pendingAction?.type === 'end' ? 'Mark round as completed?' : 'Cancel this round?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingAction?.type === 'end'
+                ? 'This will mark the round as completed. You can still view it in your history.'
+                : 'This will cancel the round. It can still be found using the Cancelled status filter.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Go back</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                if (!pendingAction || !user) return;
+                const { round, type } = pendingAction;
+                setPendingAction(null);
+                if (type === 'end') {
+                  await endRound({ round, ownerPubkey: user.pubkey });
+                } else {
+                  await cancelRound({ round, ownerPubkey: user.pubkey });
+                }
+              }}
+              disabled={isEnding || isCancelling}
+              className={pendingAction?.type === 'cancel' ? 'bg-destructive hover:bg-destructive/90' : ''}
+            >
+              {pendingAction?.type === 'end' ? 'Mark Completed' : 'Cancel Round'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Layout>
   );
 }

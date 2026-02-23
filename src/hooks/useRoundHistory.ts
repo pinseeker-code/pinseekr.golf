@@ -15,6 +15,8 @@ export interface RoundHistoryItem {
   topNet?: number;
   settlementPublished?: boolean;
   eventId?: string;
+  /** Full event tags — needed to republish with an updated status */
+  rawTags: string[][];
 }
 
 export function useRoundHistory(userPubkey?: string) {
@@ -56,6 +58,7 @@ export function useRoundHistory(userPubkey?: string) {
           gameMode: gameModeTag || 'stroke-play',
           status: statusTag || 'active',
           eventId: event.id,
+          rawTags: event.tags as string[][],
         } satisfies RoundHistoryItem;
       });
 

@@ -6,7 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useInviteInbox } from '@/hooks/useInviteInbox';
 import { useAuthor } from '@/hooks/useAuthor';
-import { Mail, MapPin, Calendar, LogIn, Flag, X } from 'lucide-react';
+import { ArrowLeft, Mail, MapPin, Calendar, LogIn, Flag, X } from 'lucide-react';
 
 function InviteCard({
   invite,
@@ -83,6 +83,7 @@ function InviteCard({
 }
 
 export default function InboxPage() {
+  const navigate = useNavigate();
   const { user } = useCurrentUser();
   const { invites, isLoading, dismiss } = useInviteInbox();
 
@@ -99,6 +100,15 @@ export default function InboxPage() {
   return (
     <div className="container max-w-2xl mx-auto px-4 py-8">
       <div className="flex items-center gap-3 mb-6">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 shrink-0"
+          onClick={() => navigate(-1)}
+          aria-label="Go back"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
         <Mail className="h-6 w-6" />
         <h1 className="text-2xl font-bold">Invite Inbox</h1>
         {invites.length > 0 && (

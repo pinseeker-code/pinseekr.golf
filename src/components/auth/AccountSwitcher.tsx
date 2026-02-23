@@ -1,7 +1,7 @@
 // NOTE: This file is stable and usually should not be modified.
 // It is important that all functionality in this file is preserved, and should only be modified if explicitly requested.
 
-import { ChevronDown, LogOut, Settings, User, Zap } from 'lucide-react';
+import { ChevronDown, LogOut, Mail, Settings, User, Zap } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,11 +15,13 @@ import { useLoggedInAccounts } from '@/hooks/useLoggedInAccounts';
 import { genUserName } from '@/lib/genUserName';
 import { Link } from 'react-router-dom';
 import { useOfflineRound } from '@/hooks/useOfflineRound';
+import { useInviteInbox } from '@/hooks/useInviteInbox';
 import { nip19 } from 'nostr-tools';
 
 export function AccountSwitcher() {
   const { currentUser, removeLogin } = useLoggedInAccounts();
   const { outboxCount } = useOfflineRound();
+  const { count: inboxCount } = useInviteInbox();
 
   if (!currentUser) return null;
 
@@ -56,6 +58,17 @@ export function AccountSwitcher() {
           <Link to={`/profile/${npub}`} className='flex items-center gap-2 cursor-pointer p-2 rounded-md'>
             <User className='w-4 h-4' />
             <span>My Profile</span>
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link to="/inbox" className='flex items-center gap-2 cursor-pointer p-2 rounded-md'>
+            <Mail className='w-4 h-4' />
+            <span>Inbox</span>
+            {inboxCount > 0 && (
+              <span className='ml-auto min-w-[18px] h-4.5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center px-1'>
+                {inboxCount > 9 ? '9+' : inboxCount}
+              </span>
+            )}
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>

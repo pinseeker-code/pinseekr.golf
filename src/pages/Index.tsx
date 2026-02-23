@@ -8,6 +8,7 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Users, Zap, Trophy, BarChart3, User, Code } from 'lucide-react';
+import { nip19 } from 'nostr-tools';
 
 // Developer profile info for "Vibed by" section
 const DEVELOPER = {
@@ -19,6 +20,7 @@ const DEVELOPER = {
 
 const Index = () => {
   const { user } = useCurrentUser();
+  const profileNpub = user ? nip19.npubEncode(user.pubkey) : null;
 
   useSeoMeta({
     title: 'Pinseekr.golf - Decentralized Golf Scoring',
@@ -65,7 +67,14 @@ const Index = () => {
                     Start New Round
                   </Button>
                 </Link>
-                {/* View Achievements button moved into the Achievement Badges card below */}
+                {profileNpub && (
+                  <Link to={`/profile/${profileNpub}`}>
+                    <Button size="lg" variant="outline" className="text-lg px-8 py-3 w-full sm:w-auto gap-2">
+                      <User className="h-5 w-5" />
+                      My Profile
+                    </Button>
+                  </Link>
+                )}
               </>
             ) : (
               <div className="bg-white/90 dark:bg-gray-800/90 p-6 rounded-lg border w-full sm:w-auto">

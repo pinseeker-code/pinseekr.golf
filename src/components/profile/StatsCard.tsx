@@ -11,14 +11,16 @@ interface StatsCardProps {
 
 interface StatItemProps {
   label: string;
-  value: number | string;
+  value: number | string | undefined | null;
   icon: React.ReactNode;
   trend?: 'up' | 'down' | 'neutral';
   format?: 'number' | 'percentage' | 'currency';
 }
 
-const formatValue = (value: number | string, format?: 'number' | 'percentage' | 'currency'): string => {
+const formatValue = (value: number | string | undefined | null, format?: 'number' | 'percentage' | 'currency'): string => {
+  if (value === undefined || value === null) return '—';
   if (typeof value === 'string') return value;
+  if (isNaN(value)) return '—';
   
   switch (format) {
     case 'percentage':

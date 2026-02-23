@@ -1,5 +1,5 @@
 
-import { useParams, Navigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { nip19 } from 'nostr-tools';
 import { Card, CardContent } from '@/components/ui/card';
@@ -9,6 +9,57 @@ import { useGolfProfile } from '@/hooks/useGolfProfile';
 import { useAuthor } from '@/hooks/useAuthor';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import MobileContainer from '@/components/MobileContainer';
+import type { GolfProfile as GolfProfileType } from '@/lib/golf/social';
+import type { NostrMetadata } from '@nostrify/nostrify';
+
+/** Build a zero-stats stub so the profile page renders for users who haven't published a golf profile yet. */
+function makeDefaultProfile(pubkey: string, metadata?: NostrMetadata): GolfProfileType {
+  return {
+    pubkey,
+    name: metadata?.name,
+    displayName: metadata?.display_name,
+    bio: metadata?.about,
+    handicap: 0,
+    homeCourse: undefined,
+    homeLocation: undefined,
+    joinedAt: Math.floor(Date.now() / 1000),
+    stats: {
+      roundsPlayed: 0,
+      averageScore: 0,
+      bestScore: 0,
+      worstScore: 0,
+      totalStrokes: 0,
+      fairwayHitPercentage: 0,
+      greenInRegulationPercentage: 0,
+      averagePutts: 0,
+      holesInOne: 0,
+      eagles: 0,
+      birdies: 0,
+      pars: 0,
+      bogeys: 0,
+      doubleBogeys: 0,
+      tripleBogeyOrWorse: 0,
+      lastUpdated: Math.floor(Date.now() / 1000),
+    },
+    badges: [],
+    achievements: [],
+    preferences: {
+      preferredTees: 'white',
+      favoriteFormat: 'stroke-play',
+      privacyLevel: 'public',
+      shareScores: true,
+      shareAchievements: true,
+      favoriteCourses: [],
+    },
+    socialStats: {
+      followers: 0,
+      following: 0,
+      roundsWithFriends: 0,
+      matchesWon: 0,
+      matchesLost: 0,
+    },
+  };
+}
 
 function ProfileSkeleton() {
   return (
@@ -127,33 +178,30 @@ export function ProfilePage() {
   const { 
     data: profile, 
     isLoading: profileLoading, 
-    error: _profileError 
   } = useGolfProfile(pubkeyQuery.data);
 
   // Get the Nostr metadata
   const author = useAuthor(pubkeyQuery.data || '');
   const metadata = author.data?.metadata;
 
-  // Handle loading states
-  if (!nip19Id) {
-    return <Navigate to="/404" replace />;
+  if (pubkeyQuery.error || (!pubkeyQuery.isLoading && !pubkeyQuery.data)) {
+    return <ProfileNotFound />;
   }
 
-  if (pubkeyQuery.isLoading || profileLoading) {
+  if (pubkeyQuery.isLoading || profileLoading || author.isLoading) {
     return <ProfileSkeleton />;
   }
 
-  if (pubkeyQuery.error || _profileError || !profile) {
-    return <ProfileNotFound />;
-  }
+  // Use actual profile if available, otherwise a default stub so the page renders
+  const resolvedProfile = profile ?? makeDefaultProfile(pubkeyQuery.data!, metadata);
 
   // Determine if this is the current user's profile
   const isOwnProfile = currentUser?.pubkey === pubkeyQuery.data;
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-6xl">
-      <GolfProfile 
-        profile={profile}
+      <GolfProfile
+        profile={resolvedProfile}
         metadata={metadata}
         isOwn={isOwnProfile}
       />

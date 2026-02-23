@@ -1,7 +1,7 @@
 // NOTE: This file is stable and usually should not be modified.
 // It is important that all functionality in this file is preserved, and should only be modified if explicitly requested.
 
-import { ChevronDown, LogOut, Settings, Zap } from 'lucide-react';
+import { ChevronDown, LogOut, Settings, User, Zap } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,6 +15,7 @@ import { useLoggedInAccounts } from '@/hooks/useLoggedInAccounts';
 import { genUserName } from '@/lib/genUserName';
 import { Link } from 'react-router-dom';
 import { useOfflineRound } from '@/hooks/useOfflineRound';
+import { nip19 } from 'nostr-tools';
 
 export function AccountSwitcher() {
   const { currentUser, removeLogin } = useLoggedInAccounts();
@@ -23,6 +24,7 @@ export function AccountSwitcher() {
   if (!currentUser) return null;
 
   const displayName = currentUser.metadata.name ?? genUserName(currentUser.pubkey);
+  const npub = nip19.npubEncode(currentUser.pubkey);
 
   return (
     <DropdownMenu modal={false}>
@@ -50,6 +52,12 @@ export function AccountSwitcher() {
             <DropdownMenuSeparator />
           </>
         )}
+        <DropdownMenuItem asChild>
+          <Link to={`/profile/${npub}`} className='flex items-center gap-2 cursor-pointer p-2 rounded-md'>
+            <User className='w-4 h-4' />
+            <span>My Profile</span>
+          </Link>
+        </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link to="/account" className='flex items-center gap-2 cursor-pointer p-2 rounded-md'>
             <Settings className='w-4 h-4' />

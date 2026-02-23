@@ -86,6 +86,10 @@ const parseGolfProfileFromEvent = (event: GolfProfileEvent): GolfProfile | null 
       const achievementsTag = event.tags.find(tag => tag[0] === 'achievements')?.[1];
       return achievementsTag ? JSON.parse(achievementsTag) as Achievement[] : [];
     };
+    const getFavoriteCourses = () => {
+      const tag = event.tags.find(tag => tag[0] === 'favorite_courses')?.[1];
+      return tag ? JSON.parse(tag) as string[] : [];
+    };
 
     const profile: GolfProfile = {
       pubkey: event.pubkey,
@@ -102,6 +106,7 @@ const parseGolfProfileFromEvent = (event: GolfProfileEvent): GolfProfile | null 
         privacyLevel: 'public',
         shareScores: true,
         shareAchievements: true,
+        favoriteCourses: getFavoriteCourses(),
       },
       socialStats: {
         followers: 0,
@@ -220,6 +225,7 @@ export function useGolfProfileMutation() {
           ['stats', JSON.stringify(profile.stats)],
           ['badges', JSON.stringify(profile.badges)],
           ['achievements', JSON.stringify(profile.achievements)],
+          ['favorite_courses', JSON.stringify(profile.preferences.favoriteCourses || [])],
           ['t', 'golf'],
           ['t', SUBTYPES.PROFILE],
         ],
@@ -257,6 +263,7 @@ export function useGolfProfileMutation() {
           ['stats', JSON.stringify(updatedProfile.stats)],
           ['badges', JSON.stringify(updatedProfile.badges)],
           ['achievements', JSON.stringify(updatedProfile.achievements)],
+          ['favorite_courses', JSON.stringify(updatedProfile.preferences.favoriteCourses || [])],
           ['t', 'golf'],
           ['t', SUBTYPES.PROFILE],
         ],

@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
-import { Save, User, Home, Settings, Calculator, RefreshCw } from 'lucide-react';
+import { Save, User, Home, Settings, Calculator, RefreshCw, Plus, X } from 'lucide-react';
 import { useGolfProfileMutation } from '@/hooks/useGolfProfile';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useHandicapCalculation } from '@/hooks/useHandicapCalculation';
@@ -37,7 +37,10 @@ export function EditGolfProfile({ profile, onSave, className }: EditGolfProfileP
     privacyLevel: profile?.preferences.privacyLevel || 'public' as const,
     shareScores: profile?.preferences.shareScores ?? true,
     shareAchievements: profile?.preferences.shareAchievements ?? true,
+    favoriteCourses: profile?.preferences.favoriteCourses || [] as string[],
   });
+
+  const [newCourse, setNewCourse] = useState('');
 
   const [isLoading, setIsLoading] = useState(false);
 
@@ -68,6 +71,7 @@ export function EditGolfProfile({ profile, onSave, className }: EditGolfProfileP
           privacyLevel: formData.privacyLevel,
           shareScores: formData.shareScores,
           shareAchievements: formData.shareAchievements,
+          favoriteCourses: formData.favoriteCourses,
         },
       };
 
@@ -343,6 +347,71 @@ export function EditGolfProfile({ profile, onSave, className }: EditGolfProfileP
               </div>
             </div>
           </div>
+
+          {/* Favorite Courses */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <Home className="h-4 w-4" />
+              Favorite Courses
+            </h3>
+            <div className="flex gap-2">
+              <Input
+                placeholder="Add a course name…"
+                value={newCourse}
+                onChange={(e) => setNewCourse(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const trimmed = newCourse.trim();
+                    if (trimmed && !formData.favoriteCourses.includes(trimmed)) {
+                      setFormData(prev => ({ ...prev, favoriteCourses: [...prev.favoriteCourses, trimmed] }));
+                    }
+                    setNewCourse('');
+                  }
+                }}
+              />
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  const trimmed = newCourse.trim();
+                  if (trimmed && !formData.favoriteCourses.includes(trimmed)) {
+                    setFormData(prev => ({ ...prev, favoriteCourses: [...prev.favoriteCourses, trimmed] }));
+                  }
+                  setNewCourse('');
+                }}
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+            {formData.favoriteCourses.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {formData.favoriteCourses.map((course) => (
+                  <span
+                    key={course}
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-muted border"
+                  >
+                    {course}
+                    <button
+                      type="button"
+                      className="hover:text-destructive"
+                      onClick={() =>
+                        setFormData(prev => ({
+                          ...prev,
+                          favoriteCourses: prev.favoriteCourses.filter((c) => c !== course),
+                        }))
+                      }
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <Separator />
 
           {/* Submit Button */}
           <div className="pt-4">

@@ -4,10 +4,28 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { LoginArea } from '@/components/auth/LoginArea';
 import { OutboxPanel } from '@/components/OutboxPanel';
 import RelayMetrics from '@/components/RelayMetrics';
+import { useInviteInbox } from '@/hooks/useInviteInbox';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 
 interface LayoutProps {
   children: React.ReactNode;
   showHeader?: boolean;
+}
+
+function InboxBadge() {
+  const { user } = useCurrentUser();
+  const { count } = useInviteInbox();
+  if (!user) return null;
+  return (
+    <Link to="/inbox" className="relative flex items-center">
+      <span className="text-sm font-semibold text-gray-900 hover:text-gray-700">Inbox</span>
+      {count > 0 && (
+        <span className="absolute -top-1.5 -right-3 min-w-[16px] h-4 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center px-0.5">
+          {count > 9 ? '9+' : count}
+        </span>
+      )}
+    </Link>
+  );
 }
 
 export const Layout: React.FC<LayoutProps> = ({ children, showHeader = true }) => {
@@ -32,6 +50,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, showHeader = true }) =
               >
                 Rounds
               </Link>
+              <InboxBadge />
             </div>
 
             <div className="flex items-center gap-2">

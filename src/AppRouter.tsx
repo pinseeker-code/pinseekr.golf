@@ -16,6 +16,7 @@ const AchievementsPage = lazy(() => import("./pages/AchievementsPage"));
 const ProfilePage = lazy(() => import("./pages/ProfilePage"));
 const AccountInfoPage = lazy(() => import("./pages/AccountInfoPage"));
 const SettlementsPage = lazy(() => import("./pages/SettlementsPage"));
+const InboxPage = lazy(() => import("./pages/InboxPage"));
 
 // New route-based components (Phase 2.3)
 const RoundSetupPageV2 = lazy(() => import("./pages/RoundSetupPage_v2"));
@@ -47,6 +48,7 @@ export function AppRouter() {
           <Route path="/round-v2/:id/score" element={<RoundScorePageV2 />} />
           <Route path="/achievements" element={<AchievementsPage />} />
           <Route path="/settlements" element={<SettlementsPage />} />
+          <Route path="/inbox" element={<InboxPage />} />
           <Route path="/account" element={<AccountInfoPage />} />
           <Route path="/profile/:nip19Id" element={<ProfilePage />} />
           {/* NIP-19 route for npub1, note1, naddr1, nevent1, nprofile1 */}

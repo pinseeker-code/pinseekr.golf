@@ -255,19 +255,23 @@ Changes:
 ### Phase 5: Polish & Performance (Week 5)
 
 #### 5.1 UX Improvements
+- [x] Add loading skeletons consistently (RoundSummaryPage, RoundDetailsPage)
+- [x] Persist demo intro dismissal (localStorage)
+- [x] Add success toasts for all mutations (CostSplitDialog expense add/sync)
+- [x] Improve error messages (specific, actionable — replaced generic 'Error' titles)
+- [x] Improve mobile responsiveness audit (grids, touch targets verified)
 - [ ] Add unsaved changes warning on navigation
-- [ ] Persist demo intro dismissal (localStorage)
-- [ ] Add loading skeletons consistently
-- [ ] Improve error messages (specific, actionable)
-- [ ] Add success toasts for all mutations
-- [ ] Improve mobile responsiveness audit
 - [ ] Add keyboard shortcuts for scoring
 
 #### 5.2 Bundle Optimization
+- [x] Fix duplicate radix-ui condition in vite.config (bug: `|| id.includes('@radix-ui')` was redundant)
+- [x] Split `@nostrify/nostrify` into dedicated `nostrify-core` chunk
+- [x] Add `experimentalMinChunkSize: 10000` to merge micro-chunks and reduce HTTP/2 requests
+- [x] Improve Suspense fallback from plain text to animated spinner
+- [x] Main `index` chunk: 205.91 kB → 51.53 kB (75% reduction)
+- [x] `react-vendor` chunk: 766.91 kB → 735.88 kB
 - [ ] Analyze bundle with `vite-bundle-visualizer`
-- [ ] Fix duplicate radix-ui condition in vite.config
-- [ ] Tree-shake unused code
-- [ ] Lazy load heavy components (Recharts)
+- [ ] Lazy load heavy components (Recharts) — already route-lazy, no further action needed
 - [ ] Add preload hints for critical resources
 - [ ] Target <500KB initial bundle
 

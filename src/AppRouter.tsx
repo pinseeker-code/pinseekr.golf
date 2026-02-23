@@ -1,5 +1,6 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { lazy, Suspense } from "react";
+import { Loader2 } from "lucide-react";
 import { ScrollToTop } from "./components/ScrollToTop";
 
 const Index = lazy(() => import("./pages/Index"));
@@ -24,7 +25,11 @@ export function AppRouter() {
   return (
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <ScrollToTop />
-      <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Loading...</div>}>
+      <Suspense fallback={
+        <div className="flex items-center justify-center min-h-screen bg-background">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      }>
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/demo" element={<DemoRoundPage />} />

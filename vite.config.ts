@@ -37,6 +37,8 @@ export default defineConfig(() => ({
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
+        // Merge micro-chunks smaller than 10KB to reduce HTTP/2 round-trips
+        experimentalMinChunkSize: 10000,
         manualChunks(id) {
           // Isolate nostr-tools for better caching and smaller main bundle
           if (id.includes('nostr-tools')) return 'nostr-tools';
@@ -46,13 +48,14 @@ export default defineConfig(() => ({
             if (id.includes('react') || id.includes('react-dom')) return 'react-vendor';
             if (id.includes('@tanstack/react-query')) return 'query';
             if (id.includes('@nostrify/react')) return 'nostrify';
+            if (id.includes('@nostrify/nostrify')) return 'nostrify-core';
             if (id.includes('react-router-dom')) return 'router';
             if (id.includes('react-hook-form')) return 'react-hook-form';
             if (id.includes('@hookform/resolvers')) return 'hookform-resolvers';
             if (id.includes('zod')) return 'zod';
             if (id.includes('@getalby/sdk')) return 'alby-sdk';
             if (id.includes('recharts')) return 'recharts';
-            if (id.includes('@radix-ui') || id.includes('@radix-ui')) return 'radix-ui';
+            if (id.includes('@radix-ui')) return 'radix-ui';
             if (id.includes('lucide-react')) return 'icons';
             if (id.includes('date-fns')) return 'date-fns';
             if (id.includes('qrcode')) return 'qrcode';

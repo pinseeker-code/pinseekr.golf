@@ -378,8 +378,12 @@ export const RoundSetupPage: React.FC = () => {
         const playerEvent = createPlayerEvent(hostPlayer, roundToPublish.id);
         await publishEvent(playerEvent);
         
-        // Add to local state
-        setRound(prev => ({ ...prev, players: [...(prev.players || []), hostPlayer] }));
+        // Add to local state — guard against duplicate (subscription may also deliver this event)
+        setRound(prev => {
+          const existing = (prev.players || []).find(p => p.playerId === hostPlayer.playerId);
+          if (existing) return prev;
+          return { ...prev, players: [...(prev.players || []), hostPlayer] };
+        });
       }
 
       // Generate QR Code
@@ -397,9 +401,12 @@ export const RoundSetupPage: React.FC = () => {
       setHasGeneratedRoundCode(true);
 
       // Copy to clipboard silently (no toast on auto-generation)
-      navigator.clipboard.writeText(joinUrl).catch(() => {
-        // Ignore clipboard errors on auto-generation
-      });
+      // navigator.clipboard may be undefined over HTTP or in restricted contexts
+      if (navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(joinUrl).catch(() => {
+          // Ignore clipboard errors on auto-generation
+        });
+      }
     } catch (error) {
       console.error('Error generating round code:', error);
       toast({
@@ -491,8 +498,11 @@ export const RoundSetupPage: React.FC = () => {
             }
           }
         } else {
+          const seenPlayerIds = new Set<string>();
           for (const pe of playerEvents) {
             const playerId = ((pe.tags as string[][]).find((t: string[]) => t[0] === 'player') || [])[1] || pe.pubkey;
+            if (seenPlayerIds.has(playerId)) continue;
+            seenPlayerIds.add(playerId);
             const name = ((pe.tags as string[][]).find((t: string[]) => t[0] === 'name') || [])[1] || genUserName(playerId);
             const handicap = parseInt(((pe.tags as string[][]).find((t: string[]) => t[0] === 'handicap') || [])[1] || '0', 10) || 0;
             players.push({ playerId, name, handicap, scores: [], total: 0, netTotal: 0 });
@@ -645,8 +655,12 @@ export const RoundSetupPage: React.FC = () => {
         netTotal: 0
       };
 
-      // Optimistic local update first
-      setRound(prev => ({ ...prev!, players: [...(prev!.players || []), player] }));
+      // Optimistic local update — guard against duplicate (subscription may deliver this event back)
+      setRound(prev => {
+        const existing = (prev!.players || []).find(p => p.playerId === player.playerId);
+        if (existing) return prev;
+        return { ...prev!, players: [...(prev!.players || []), player] };
+      });
 
       // Publish a player event so all clients see the new player
       const playerEvent = createPlayerEvent(player, round.id);

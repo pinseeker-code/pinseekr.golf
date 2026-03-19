@@ -1,4 +1,4 @@
-# 🏌️ Pinseekr Golf
+# Pinseekr Golf
 
 **The decentralized golf scoring app powered by Bitcoin and Nostr.**
 
@@ -80,7 +80,7 @@ Open [http://localhost:8080](http://localhost:8080)
 
 ---
 
-## 🎮 Supported Game Modes
+## 🏌️ Supported Game Modes
 
 | Game | Description |
 |------|-------------|
